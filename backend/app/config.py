@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     postgres_db: str = "threat_hunting"
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
+    # Optional libpq sslmode (e.g. "require" for Neon's pooled
+    # endpoint). Blank (default) leaves the connection string exactly
+    # as before, so local Docker Postgres is unaffected.
+    postgres_sslmode: str = ""
 
     # Elasticsearch
     elasticsearch_host: str = "http://localhost:9200"
@@ -77,10 +81,11 @@ class Settings(BaseSettings):
 
     @property
     def postgres_url(self) -> str:
-        return (
+        base = (
             f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+        return f"{base}?sslmode={self.postgres_sslmode}" if self.postgres_sslmode else base
 
 
 settings = Settings()
