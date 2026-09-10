@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # Elasticsearch
     elasticsearch_host: str = "http://localhost:9200"
 
+    # CORS. Comma-separated list of allowed frontend origins (see
+    # cors_allowed_origins_list below for the parsed form actually passed
+    # to CORSMiddleware). Defaults to the local Vite dev server so local
+    # development keeps working unchanged; production sets this via env
+    # to the deployed frontend's exact HTTPS origin. Never use "*" here.
+    cors_allowed_origins: str = "http://localhost:5173"
+
     # Auth. No usable default on purpose - see _reject_insecure_jwt_secret
     # below, which fails application startup rather than silently signing
     # tokens with a missing or known-insecure secret. Set a real value via
@@ -86,6 +93,15 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
         return f"{base}?sslmode={self.postgres_sslmode}" if self.postgres_sslmode else base
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        """Parsed, whitespace-stripped list of allowed CORS origins."""
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 settings = Settings()
