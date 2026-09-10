@@ -1,0 +1,446 @@
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.data-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table__row--clickable {
+  cursor: pointer;
+}
+
+.data-table__row--clickable:hover {
+  background: var(--color-bg-elevated);
+}
+
+.table-empty {
+  color: var(--color-text-muted);
+  padding: 2rem 0;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+/* ================================
+   Alert / Incident Filters
+   ================================ */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.filter-bar input,
+.filter-bar select,
+.table-toolbar select {
+  height: 40px;
+  padding: 0 12px;
+  background: var(--background);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: none;
+  font-size: 14px;
+}
+
+.filter-bar input {
+  min-width: 260px;
+  flex: 1;
+}
+
+.filter-bar input::placeholder {
+  color: var(--text-muted);
+}
+
+.filter-bar input:focus,
+.filter-bar select:focus,
+.table-toolbar select:focus {
+  border-color: var(--accent);
+}
+
+/* ================================
+   Table Toolbar
+   ================================ */
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.table-toolbar > span {
+  margin-right: auto;
+}
+
+.table-toolbar select {
+  min-width: 150px;
+}
+
+.sort-direction {
+  height: 40px;
+  padding: 0 14px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sort-direction:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* ================================
+   Pagination
+   ================================ */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 16px 0;
+}
+
+.pagination span {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.pagination button {
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.pagination button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ================================
+   Empty State
+   ================================ */
+
+.state-panel {
+  padding: 40px 20px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.state-panel h3 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+
+.state-panel p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* ================================
+   Responsive Filters
+   ================================ */
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+  }
+
+  .filter-bar input,
+  .filter-bar select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .table-toolbar {
+    justify-content: flex-start;
+  }
+
+  .table-toolbar > span {
+    width: 100%;
+    margin-right: 0;
+  }
+}
+/* ================================
+   Filter Bar
+   ================================ */
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 22px;
+  padding: 16px;
+  background: #15171b;
+  border: 1px solid #292d33;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-bar input,
+.filter-bar select,
+.filter-bar button {
+  height: 42px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  border: 1px solid #30353d;
+  background: #1a1d22;
+  color: #f1f5f9;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.filter-bar input {
+  min-width: 240px;
+  flex: 1;
+  padding: 0 14px;
+}
+
+.filter-bar input::placeholder {
+  color: #7f8794;
+}
+
+.filter-bar input:focus,
+.filter-bar select:focus,
+.filter-bar button:focus {
+  outline: none;
+  border-color: #2684ff;
+  box-shadow: 0 0 0 2px rgba(38, 132, 255, 0.15);
+}
+
+.filter-bar select {
+  min-width: 150px;
+  padding: 0 34px 0 12px;
+  cursor: pointer;
+}
+
+.filter-bar button {
+  padding: 0 15px;
+  cursor: pointer;
+  background: #1a1d22;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.filter-bar button:hover:not(:disabled) {
+  background: #20242b;
+  border-color: #3d4652;
+}
+
+.filter-bar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+/* ================================
+   Results Count
+   ================================ */
+
+.results-count {
+  margin: 8px 0 18px;
+  color: #a7afbb;
+  font-size: 14px;
+}
+
+
+/* ================================
+   Pagination
+   ================================ */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 28px 0 10px;
+}
+
+.pagination button {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid #30353d;
+  border-radius: 7px;
+  background: #181b20;
+  color: #dbe3ed;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: #20242b;
+  border-color: #2684ff;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination span {
+  color: #a7afbb;
+  font-size: 14px;
+}
+@media (max-width: 900px) {
+  .filter-bar {
+    align-items: stretch;
+  }
+
+  .filter-bar input,
+  .filter-bar select,
+  .filter-bar button {
+    flex: 1 1 180px;
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-bar {
+    flex-direction: column;
+  }
+
+  .filter-bar input,
+  .filter-bar select,
+  .filter-bar button {
+    width: 100%;
+    flex: none;
+  }
+
+  .pagination {
+    gap: 10px;
+  }
+}
+/* List controls: result count + sorting */
+.list-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 28px 0 18px;
+  gap: 20px;
+}
+
+.list-controls > span {
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sort-controls select,
+.sort-controls button {
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-background);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.sort-controls select {
+  min-width: 180px;
+}
+
+.sort-controls button {
+  min-width: 130px;
+}
+
+.sort-controls select:hover,
+.sort-controls button:hover {
+  border-color: var(--accent-color);
+}
+
+.sort-controls select:focus,
+.sort-controls button:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 28px 0;
+}
+
+.pagination button {
+  padding: 9px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-background);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.pagination button:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination span {
+  color: var(--text-secondary);
+  font-size: 14px;
+}

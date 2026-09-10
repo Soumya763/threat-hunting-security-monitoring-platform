@@ -1,0 +1,19 @@
+- pipeline.id: json_tcp
+  path.config: "/usr/share/logstash/pipeline/logstash.config"
+  pipeline.workers: 1
+
+- pipeline.id: firewall_syslog
+  path.config: "/usr/share/logstash/pipeline/firewall_syslog.conf"
+  pipeline.workers: 1
+
+- pipeline.id: dns
+  path.config: "/usr/share/logstash/pipeline/dns.conf"
+  pipeline.workers: 1
+
+- pipeline.id: windows
+  path.config: "/usr/share/logstash/pipeline/windows.conf"
+  pipeline.workers: 1
+
+- pipeline.id: proxy
+  path.config: "/usr/share/logstash/pipeline/proxy.conf"
+  pipeline.workers: 1  

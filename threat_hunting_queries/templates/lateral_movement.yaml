@@ -1,0 +1,51 @@
+# Detection rule schema:
+#   name             - short human-readable rule name
+#   description       - what the rule detects and why it matters
+#   mitre_tactic       - MITRE ATT&CK tactic (ID + name)
+#   mitre_technique     - MITRE ATT&CK technique (ID + name)
+#   severity           - low | medium | high | critical (alert severity if this rule fires)
+#   index               - Elasticsearch index pattern to query
+#   query                - Elasticsearch Query DSL (filters + aggregations)
+#   threshold             - condition applied to the query's aggregation result
+#                           that decides whether an alert should be raised
+
+name: "Lateral Movement - Multiple Host Logins by Single User"
+
+description: >
+  Detects a single user account successfully authenticating (windows_login)
+  to multiple distinct hosts within a short time window. One account
+  logging into several machines in quick succession is a common signal of
+  an attacker moving laterally through the network after initial compromise.
+
+mitre_tactic: "TA0008 - Lateral Movement"
+mitre_technique: "T1021 - Remote Services"
+
+severity: high
+
+index: "events-windows-*"
+
+query:
+  bool:
+    filter:
+      - term:
+          event_type.keyword: "windows_login"
+      - range:
+          "@timestamp":
+            gte: "now-15m"
+            lte: "now"
+  aggs:
+    by_user:
+      terms:
+        field: "username.keyword"
+        size: 50
+      aggs:
+        distinct_hosts:
+          cardinality:
+            field: "source_name.keyword"
+
+threshold:
+  # Fires when a single "username" bucket touches at least this many
+  # distinct hosts ("source_name") inside the query's time range.
+  aggregation: "distinct_hosts"
+  min_count: 3
+  window_minutes: 15
