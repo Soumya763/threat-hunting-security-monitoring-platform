@@ -5,8 +5,13 @@ import { clearSession, getToken } from "../utils/tokenStorage";
 // pages should always go through the functions exported here rather than
 // calling axios directly, so the base URL and request shape stay
 // consistent in one place.
+//
+// The base URL is configurable via Vite's VITE_API_BASE_URL env var (see
+// .env.example) so the same build can target the local FastAPI backend in
+// development and the deployed backend in production without code changes.
+// Falls back to the local backend when the variable isn't set.
 const apiClient = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000",
 });
 
 // Attach the logged-in user's token, when present, to every request.
