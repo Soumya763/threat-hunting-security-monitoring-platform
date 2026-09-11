@@ -82,7 +82,20 @@ def test_execute_rule_wraps_search_exception():
     error-handling behavior, unchanged by this fix."""
     from opensearchpy.exceptions import ConnectionError as OSConnectionError
 
-    with patch.object(executor.es_client, "search", side_effect=OSConnectionError("boom")):
+    # ConnectionError is a TransportError subclass whose __str__ reads
+    # self.args[1] (the error message) and self.info == self.args[2] (the
+    # underlying cause). Constructing it with a single positional arg, as
+    # `OSConnectionError("boom")`, leaves those unset - opensearch-py
+    # 3.2.0's TransportError.__str__ then indexes into a 1-element args
+    # tuple and raises IndexError instead of ever producing a message, so
+    # executor.py's f"...: {exc}" formatting blows up before
+    # RuleExecutionError can even be constructed. Match the real 3-arg
+    # shape opensearch-py's own transport layer uses when it raises this
+    # exception: (status_code, error_message, info/cause).
+    simulated_cause = ConnectionRefusedError("simulated connection failure")
+    search_exception = OSConnectionError("N/A", "Connection refused", simulated_cause)
+
+    with patch.object(executor.es_client, "search", side_effect=search_exception):
         try:
             executor.execute_rule(RULE)
             assert False, "expected RuleExecutionError"
