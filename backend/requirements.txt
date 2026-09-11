@@ -2,7 +2,7 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 sqlalchemy==2.0.35
 psycopg2-binary==2.9.12
-elasticsearch==8.15.1
+opensearch-py==3.2.0
 pydantic-settings==2.5.2
 python-dotenv==1.0.1
 PyYAML==6.0.2

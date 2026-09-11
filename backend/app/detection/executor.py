@@ -9,7 +9,7 @@ threshold, generate alerts, or schedule anything (later stages).
 
 from typing import Any
 
-from elasticsearch import ApiError, TransportError
+from opensearchpy.exceptions import OpenSearchException
 
 from app.database.elasticsearch import es_client
 
@@ -57,7 +57,10 @@ def execute_rule(rule: dict[str, Any]) -> dict[str, Any]:
 
     try:
         response = es_client.search(index=index, **search_kwargs)
-    except (ApiError, TransportError) as exc:
+    except OpenSearchException as exc:
+        # Base exception for all opensearch-py client/server errors -
+        # connection failures, timeouts, non-2xx responses, etc. (covers
+        # what ApiError/TransportError covered for elasticsearch-py).
         raise RuleExecutionError(
             f"Elasticsearch error while executing rule '{name}' "
             f"against index '{index}': {exc}"
@@ -68,7 +71,10 @@ def execute_rule(rule: dict[str, Any]) -> dict[str, Any]:
             f"against index '{index}': {exc}"
         ) from exc
 
-    return response.body
+    # opensearch-py's search() returns the deserialized response body
+    # directly (a plain dict), unlike elasticsearch-py 8.x's
+    # ObjectApiResponse wrapper - no .body access needed here anymore.
+    return response
 
 
 if __name__ == "__main__":
