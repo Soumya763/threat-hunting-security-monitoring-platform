@@ -56,7 +56,11 @@ def execute_rule(rule: dict[str, Any]) -> dict[str, Any]:
     search_kwargs = build_search_body(rule)
 
     try:
-        response = es_client.search(index=index, **search_kwargs)
+        # opensearch-py's search() only accepts body/index/params/headers -
+        # unlike elasticsearch-py 8.x, it does NOT accept top-level
+        # query/aggs/size as separate keyword arguments. The whole search
+        # body must be passed as a single `body=` dict.
+        response = es_client.search(index=index, body=search_kwargs)
     except OpenSearchException as exc:
         # Base exception for all opensearch-py client/server errors -
         # connection failures, timeouts, non-2xx responses, etc. (covers
