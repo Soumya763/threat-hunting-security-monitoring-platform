@@ -1,10 +1,32 @@
 import { NavLink } from "react-router-dom";
 import { useHealth } from "../context/HealthContext";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", end: true },
-  { to: "/alerts", label: "Alerts", end: false },
-  { to: "/incidents", label: "Incidents", end: false },
+const NAV_GROUPS = [
+  {
+    title: "Monitor",
+    items: [
+      { to: "/", label: "Dashboard", end: true },
+      { to: "/alerts", label: "Alerts" },
+      { to: "/incidents", label: "Incidents" },
+      { to: "/logs", label: "Log Monitoring" },
+    ],
+  },
+  {
+    title: "Investigate",
+    items: [
+      { to: "/files", label: "File Analysis" },
+      { to: "/urls", label: "URL Analysis" },
+      { to: "/search", label: "Threat Intelligence Search" },
+      { to: "/history", label: "Analysis History" },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { to: "/reports", label: "Reports" },
+      { to: "/settings", label: "Settings" },
+    ],
+  },
 ];
 
 const STATUS_CONFIG = {
@@ -17,20 +39,9 @@ const STATUS_CONFIG = {
 function ShieldIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 2l7 3v6c0 5-3.4 8.6-7 11-3.6-2.4-7-6-7-11V5l7-3z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        fill="rgba(57, 135, 229, 0.12)"
-      />
-      <path
-        d="M9 12l2 2 4-4.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M12 2l7 3v6c0 5-3.4 8.6-7 11-3.6-2.4-7-6-7-11V5l7-3z" stroke="currentColor"
+        strokeWidth="1.5" strokeLinejoin="round" fill="rgba(57, 135, 229, 0.12)" />
+      <path d="M9 12l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -49,18 +60,17 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="sidebar__nav">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `sidebar__nav-link${isActive ? " sidebar__nav-link--active" : ""}`
-            }
-          >
-            {item.label}
-          </NavLink>
+      <nav className="sidebar__nav" aria-label="Main">
+        {NAV_GROUPS.map((group) => (
+          <div className="sidebar__group" key={group.title}>
+            <div className="sidebar__group-title">{group.title}</div>
+            {group.items.map((item) => (
+              <NavLink key={item.to} to={item.to} end={Boolean(item.end)}
+                className={({ isActive }) => `sidebar__nav-link${isActive ? " sidebar__nav-link--active" : ""}`}>
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
 

@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.analysis import filetype
 from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.database.postgres import get_db
@@ -174,3 +175,21 @@ def incident_report(
     pdf = reports.incident_report_pdf(report)
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="incident-{incident.id}.pdf"'})
+
+
+@router.get("/platform/limits")
+def platform_limits(current_user: User = Depends(get_current_user)):
+    """Non-secret limits the UI displays (retention, size, fetch and visibility settings)."""
+    return {
+        "max_upload_bytes": settings.file_max_upload_bytes,
+        "supported_extensions": sorted(filetype.ALLOWED_EXTENSIONS),
+        "file_retention_hours": settings.file_retention_hours,
+        "url_max_redirects": settings.url_max_redirects,
+        "url_fetch_timeout_seconds": settings.url_fetch_timeout_seconds,
+        "url_max_body_bytes": settings.url_max_body_bytes,
+        "urlscan_visibility": settings.urlscan_visibility,
+        "pivot_lookback_days": settings.pivot_lookback_days,
+        "provider_cache_ttl_hours": settings.provider_cache_ttl_hours,
+        "provider_hash_lookup_enabled": settings.provider_hash_lookup_enabled,
+        "analysis_submissions_per_minute": settings.analysis_submissions_per_minute,
+    }
