@@ -70,6 +70,27 @@ services:
       postgres:
         condition: service_healthy
 
+  # Optional application container. Start with: docker compose --profile app up --build
+  # The default `docker compose up` (infrastructure only) is unchanged.
+  backend:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: threat-hunting-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_HOST: postgres
+      ELASTICSEARCH_HOST: http://elasticsearch:9200
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
 volumes:
   postgres_data:
   elasticsearch_data:
