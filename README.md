@@ -45,18 +45,19 @@ provider is shown as "not configured".
 | File analysis (type, hashes, static, YARA, score, reports) | Implemented | Tested with synthetic files; parser limits listed in the report |
 | URL analysis with SSRF protection | Implemented | Tested with stubbed DNS and HTTP; real network path exercised only against example hosts |
 | Threat-intel search | Implemented | Providers stubbed in tests |
-| VirusTotal, MalwareBazaar, OTX, urlscan.io integrations | Implemented, **not live-tested** | Need your own keys. See [docs/PROVIDERS.md](docs/PROVIDERS.md) |
+| VirusTotal, MalwareBazaar, OTX, urlscan.io integrations | Implemented; client verified over real HTTP against a **labelled mock** (28 checks). Real provider responses **not verified** (no keys) | See [docs/PROVIDERS.md](docs/PROVIDERS.md) |
 | AbuseIPDB | Implemented (existing, reused) | Needs key |
 | RDAP domain data | Implemented, not live-tested | No key |
 | Local log pivots and log search | Implemented and live-tested | Verified through the API against OpenSearch 2.19.7 (Logstash → OpenSearch → API) |
+| End-to-end verification | Done; see [docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md) | Backend 219 tests passing (incl. live OpenSearch and PostgreSQL), scripted end-to-end suites in `scripts/verification/` |
 | Analysis history, owner isolation | Implemented and tested | |
 | Analyst notes, incident links, audit | Implemented and tested | |
 | Dashboard summary | Implemented | Counts come from the database |
-| Frontend pages | Implemented and smoke-tested in a browser | Login, file upload, URL analysis, search, history, log search, reports, settings |
+| Frontend pages | Implemented and verified in a headless browser (39 workflow checks, mobile layout) | Every sidebar route, uploads, URL analysis, search, history, reports, alert and incident actions, error states |
 | Scoring weights | **Starting values**, not tuned | No labelled dataset yet |
 | Incident page lists linked analyses | Not implemented | Incident **reports** include them |
 | Frontend Dockerfile | Not implemented | Build with `npm run build` |
-| Backend Docker image | Written, **not built here** | See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
+| Backend Docker image | Built and run as the `backend` Compose service (verified) | See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
 | Dynamic analysis / sandbox | Out of scope | |
 | AI summaries, natural-language hunting, copilot | Not implemented | Planned later, per the project report |
 
@@ -94,7 +95,7 @@ cd backend && JWT_SECRET_KEY=test-only-secret-0123456789abcdef0123456789abcdef p
 cd frontend && npm test && npm run build
 ```
 
-Results and what they do not prove are in [docs/TESTING.md](docs/TESTING.md).
+Results, and what each one does and does not prove, are in [docs/TESTING.md](docs/TESTING.md).
 
 ## Documentation
 

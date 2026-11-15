@@ -50,6 +50,11 @@ implemented in code and covered by tests unless marked otherwise.
 - Provider calls are rate-limited client-side (minimum interval and daily quota per
   provider). These limiters are per process.
 
+## Login lockout
+- Failed logins are counted per client IP for five minutes; a sixth attempt gets 429. This protects
+  against guessing, but several analysts behind one NAT address can lock each other out. A shared
+  store and per-account counting would fix this; it is not implemented.
+
 ## Secrets
 - Provider keys are read from environment variables only. `GET /api/v1/providers` returns
   configured status and the variable name, never the value (test:

@@ -117,6 +117,13 @@ if a file's bytes were purged by retention.
   event search. `503` when OpenSearch is unreachable.
 - `GET /health` → `{ "api": "ok", "postgres": "ok", "opensearch": "unreachable" }`
 
+## Rate limits
+- Login: five failed attempts per client IP within five minutes, then `429`.
+- Analysis submissions (files, URLs, indicator searches, reruns, external submissions): 20 per user
+  per minute, then `429` with a retry message. Invalid submissions also count, because the check runs first.
+- Provider calls: each provider has a client-side minimum interval and daily cap. A limited call is
+  reported as `rate_limited`; it is never counted as a detection.
+
 ## Error format
 Errors use FastAPI's `{ "detail": "..." }`. Messages are written for users and do not include
 stack traces, keys or internal paths.

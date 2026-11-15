@@ -1,56 +1,78 @@
-# Testing
+# Testing and verification
 
-## Backend
+Three layers, each labelled by what it touches:
 
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-JWT_SECRET_KEY=test-only-secret-0123456789abcdef0123456789abcdef python -m pytest -q
-```
+| Layer | Where | Touches | Run with |
+|---|---|---|---|
+| Unit and API tests | `backend/tests/` | mocks, SQLite, stubs; no network | `pytest` |
+| Live service tests | `backend/tests/test_opensearch_integration.py`, `test_postgres_integration.py` | real OpenSearch and PostgreSQL (skipped if unreachable) | `pytest` with the containers running |
+| End-to-end verification | `scripts/verification/` | running Compose stack, backend, frontend, headless browser | `scripts/verification/run_all.sh` and `ui_e2e.js` |
 
-The test suite needs no network, no PostgreSQL and no OpenSearch. `conftest.py` sets a
-non-secret JWT key for the test process only.
+## Results for this release
 
-| File | What it covers | Live services needed |
+Commands and environment: Docker Compose on Linux (Docker Engine 29), Python 3.13, Node 22,
+Chromium via Playwright. Final run on the final code.
+
+| Suite | Result | Kind of test |
 |---|---|---|
-| `test_executor.py`, `test_threat_intel.py` | Existing rule execution and AbuseIPDB behaviour | none |
-| `test_detection_rules.py` | Rule structure; every queried field is produced by a Logstash pipeline (static check) | none |
-| `test_alerts_and_correlation.py` | `source_ip` population, duplicate suppression, correlation on evidence, attachment to open incidents | none (SQLite) |
-| `test_file_core.py` | Hashing vectors, magic bytes, PDF/ZIP/PE/PNG parsers, YARA, scoring and classification | none |
-| `test_file_analysis.py` | End-to-end file analysis on synthetic files | none |
-| `test_url_ssrf.py` | URL policy, DNS policy, redirect re-validation, DNS rebinding pin, TLS and timeout handling, a real loopback transport test | none |
-| `test_url_analysis.py` | Lookalike detection, page inspection, end-to-end URL scoring with stubbed I/O | none |
-| `test_providers.py` | Provider configuration, normalisation, HTTP error mapping, retries, cache, rate limits, AbuseIPDB adapter | none (`requests` replaced) |
-| `test_pivot_reports_quarantine.py` | Pivot escaping and unavailable handling, PDF escaping, quarantine permissions, size limits, retention purge | none (SQLite, fake ES) |
-| `test_api_flow.py` | Login, existing alert workflow, file/URL/search submission, owner isolation, filters, consent gates, notes and links, audit trail, reports, rate limit, provider secrecy, dashboard, log search `503` | none (SQLite, stubbed I/O) |
+| Backend pytest (all) | **219 passed, 0 failed, 0 skipped** | unit, API (SQLite), live OpenSearch (11), live PostgreSQL (4) |
+| Frontend unit tests (`node --test`) | **5 passed, 0 failed** | pure functions |
+| Frontend production build | passes | build |
+| Docker Compose config | valid | config |
+| SOC workflow (`verify_soc_workflow.py`) | **19/19** | live API, live PostgreSQL |
+| SOC scenario and detection rules (`per_rule.py`) | **22/22** (8 rules in isolation + benign negative) | live Logstash, OpenSearch, PostgreSQL |
+| File analysis (`verify_files.py`) | **118/118** | live API, synthetic files |
+| URL analysis (`verify_urls.py`) | **31/31** | live API, live DNS and HTTPS, safe failure cases |
+| Threat intel search (`verify_ti.py`) | **62/62** | live API, live OpenSearch pivots, live RDAP |
+| Ownership and retention (`verify_ownership_retention.py`) | **19/19** | live API, live purge routine |
+| Provider behaviour (`verify_providers.py`) | **28/28** | **MOCK-backed**: a mock HTTP server stands in for the providers |
+| Browser workflow (`ui_e2e.js`) | **39/39** (one deliberate 422 is expected) | headless Chromium against live API |
+| Mobile layout (`ui_mobile.js`) | 10 routes at 390 px, **0 px horizontal overflow**, no errors | headless Chromium |
 
-Current result: **197 passed** (20 pre-existing plus new tests).
+Failures found and fixed during this verification are listed in
+[VERIFICATION-REPORT.md](VERIFICATION-REPORT.md).
 
-### Integration checks run manually (not part of pytest)
-- `python -m app.database.migrate` applied twice against a local PostgreSQL 16 database. The second run was a no-op.
-- The FastAPI app was started with uvicorn against that PostgreSQL database. `/health` returned `postgres: ok`.
-- A headless browser logged in, uploaded a synthetic PDF with a JavaScript action, and waited for
-  the result. The URL and search flows also completed. The log page showed an honest
-  "unavailable" message because no OpenSearch was running. The only console error was the
-  expected 503 from that search call.
+## Mock versus live
 
-### Not verified in this environment
-- Production-grade OpenSearch security (roles, TLS, managed endpoints). Only the local,
-  security-disabled development container was tested.
-- Live provider calls (VirusTotal, MalwareBazaar, OTX, urlscan.io, AbuseIPDB, RDAP). Use real keys
-  in a private `.env` and check one indicator per provider.
-- Docker image build for the backend (`docker compose --profile app up --build`).
+| Behaviour | Test type | Status |
+|---|---|---|
+| OpenSearch queries for all eight rules, pivots, log search | live (OpenSearch 2.19.7) | verified |
+| PostgreSQL schema, migration (run twice), owner-scoped rows, unique links | live (PostgreSQL 16) | verified |
+| Logstash ingestion of firewall, DNS, proxy, Windows and JSON events | live (Logstash 8.9 + OpenSearch output) | verified |
+| DNS, TLS verification, certificate details, RDAP, HTTP redirects | live network | verified for `example.com`, `rdap.org`; redirects to private addresses are **not** verified live (see below) |
+| Provider HTTP client, mapping of results, rate-limit and timeout responses, cache, consent gates | **mock** over real HTTP | verified against the mock only |
+| VirusTotal, MalwareBazaar, OTX, urlscan.io, AbuseIPDB real responses | none | **NOT VERIFIED**: no provider keys were used |
+| Redirect from a public host to a private address (live) | none | **NOT VERIFIED live**: no controllable public host exists in this environment. Covered by `test_url_ssrf.py`, which uses a controlled fetcher and a real loopback transport. |
+| Real VBA macro auto-execution detection | none | **NOT VERIFIED**: no benign VBA document was created |
+| PE import and packing indicators on a real binary | none | **NOT VERIFIED**: only a header-level synthetic PE is parsed |
 
-## Frontend
+## Running everything
 
 ```bash
-cd frontend
-npm ci
-npm test          # node:test unit tests for formatting helpers (5 tests)
-npm run build     # production build
+# 1. Live services and backend container
+docker compose up -d postgres opensearch logstash
+docker compose --profile app up -d --build backend
+docker compose exec backend python -m app.database.migrate
+
+# 2. Backend tests (uses the live PostgreSQL and OpenSearch when they answer)
+cd backend && JWT_SECRET_KEY=test-only-secret-0123456789abcdef0123456789abcdef python -m pytest -q -rs
+
+# 3. Frontend unit tests and build
+cd frontend && npm ci && npm test && npm run build
+
+# 4. End-to-end (needs analyst accounts; see scripts/verification/README.md)
+export ANALYST1_PASSWORD=... ANALYST2_PASSWORD=...
+bash scripts/verification/run_all.sh
+cd frontend && node ../scripts/verification/ui_e2e.js
+cd frontend && node ../scripts/verification/ui_mobile.js
 ```
 
-Browser checks were run against the dev server with Playwright: login, file upload and
-result, URL analysis and result, search and result, history, log search, reports,
-settings, and a 390 px viewport with no horizontal page scroll on the pages checked.
+`-rs` prints the reason for any skipped test. A test that skips because a service is down is
+reported as skipped, never as passed.
+
+## Test-data policy
+
+- All uploaded test files are harmless and generated by `scripts/verification/make_fixtures.py`.
+  Suspicious files contain indicator names as text. The PE file is a header-only structure.
+- No real malware is downloaded, executed or uploaded anywhere.
+- The mock provider server is labelled as a mock and is never presented as a provider result.

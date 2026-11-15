@@ -2,7 +2,7 @@
 
 ## Local development (verified path)
 
-1. **Infrastructure** (PostgreSQL, OpenSearch, Logstash with the OpenSearch output plugin):
+1. **Infrastructure** (PostgreSQL, OpenSearch, Logstash with the OpenSearch output plugin). The commands below run the backend on your machine; the full-container route is described further down:
    ```bash
    # Linux hosts need this kernel setting for OpenSearch (not persistent across reboots):
    sudo sysctl -w vm.max_map_count=262144
@@ -32,19 +32,41 @@
 OpenSearch is needed for Log Monitoring, local-context pivots and the detection rules. Without it the
 platform still runs, and those features report that the search engine is unavailable.
 
-## Docker (optional backend container; not built in this environment)
+## Docker: full stack in containers (verified)
 
 ```bash
-docker compose --profile app up --build
+docker compose up -d postgres opensearch logstash postgres_admin      # infrastructure
+docker compose --profile app up -d --build backend                    # FastAPI backend
+docker compose exec backend python -m app.database.migrate
+docker compose exec backend python -m app.auth.create_user <username> <password>
+cd frontend && npm ci && npm run dev                                   # frontend on :5173
 ```
-The `backend` service in `docker-compose.yml` uses `backend/Dockerfile` (build context is
-the repository root, because detection rules are outside `backend/`). It reads
-`backend/.env`. Its container paths: quarantine at `/app/quarantine`, rules at
-`/threat_hunting_queries`.
 
-Limitations: the image has not been built in this environment, and the Docker daemon
-was not available. The frontend has no Dockerfile yet; build it with `npm run build` and
-serve `frontend/dist` from any static host.
+The `backend` service is in the `app` profile, so the default `docker compose up` starts only the
+infrastructure. `backend/Dockerfile` builds from the repository root (detection rules live
+outside `backend/`). `.dockerignore` keeps `.env` files, `node_modules`, quarantined uploads and
+build output out of the image.
+
+Verified in this release: the image builds, the container reaches PostgreSQL and OpenSearch by
+their Compose service names, `GET /health` reports `postgres: ok, opensearch: ok`, and the
+migration runs inside the container.
+
+### Networks that intercept TLS
+
+Corporate or sandbox proxies re-sign HTTPS with their own CA. Without that CA, pip, provider
+calls, RDAP and URL analysis all fail certificate verification. The analyser then reports the
+problem instead of guessing. To trust your CA, place its PEM certificate in `backend/certs/`
+(as `*.crt`) before building. The directory is git-ignored except `.gitkeep`, so CA files are never
+committed. The image combines the public roots with your CA into one bundle and points
+`REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE` and `PIP_CERT` at it.
+
+### Compose notes
+- OpenSearch reports `yellow` on a single node. The replica shards cannot be placed on one node,
+  so yellow is normal for local development. Health checks treat yellow as available.
+- pgAdmin is bound to IPv4 (`PGADMIN_LISTEN_ADDRESS=0.0.0.0`), because its default IPv6 bind fails
+  on IPv4-only Docker hosts.
+- The OpenSearch container runs with the security plugin disabled and publishes port 9200. Use it
+  on a development machine only (see Production checklist).
 
 ## Production checklist
 - Set `JWT_SECRET_KEY` to a fresh random value, and keep `.env` out of version control.
