@@ -1,0 +1,38 @@
+# Application auth failures reported by JSON-producing services.
+# Producer contract (documented in docs/ARCHITECTURE.md): the service sends
+# event_type "auth_failure", user.name and source.ip. Other JSON events are
+# not matched.
+name: "Application Authentication Failures - Repeated for One User"
+description: >
+  A JSON-logging application reports at least five auth_failure events for
+  one user within 10 minutes. This complements the Windows rules for
+  web and API applications that log to the JSON pipeline.
+mitre_tactic: "TA0006 - Credential Access"
+mitre_technique: "T1110 - Brute Force"
+severity: medium
+index: "events-json-*"
+query:
+  bool:
+    filter:
+      - term:
+          event_type.keyword: "auth_failure"
+      - range:
+          "@timestamp":
+            gte: "now-10m"
+            lte: "now"
+  aggs:
+    by_user:
+      terms:
+        field: "user.name.keyword"
+        size: 50
+      aggs:
+        top_source_ip:
+          terms:
+            field: "source.ip.keyword"
+            size: 1
+threshold:
+  aggregation: "_count"
+  min_count: 5
+  window_minutes: 10
+  entity_type: "user"
+  source_ip_aggregation: "top_source_ip"

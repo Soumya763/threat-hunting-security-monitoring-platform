@@ -36,11 +36,24 @@ class RuleValidationError(Exception):
     """Raised when a rule YAML file is malformed or missing required fields."""
 
 
+VALID_ENTITY_TYPES = ("user", "ip", "domain", "host")
+
+
 def _validate_rule(rule: dict[str, Any], source_file: Path) -> None:
     missing = [field for field in REQUIRED_FIELDS if field not in rule]
     if missing:
         raise RuleValidationError(
             f"{source_file.name} is missing required field(s): {', '.join(missing)}"
+        )
+
+    threshold = rule["threshold"]
+    if not isinstance(threshold, dict):
+        raise RuleValidationError(f"{source_file.name}: threshold must be a mapping")
+    entity_type = threshold.get("entity_type")
+    if entity_type not in VALID_ENTITY_TYPES:
+        raise RuleValidationError(
+            f"{source_file.name}: threshold.entity_type must be one of "
+            f"{', '.join(VALID_ENTITY_TYPES)}"
         )
 
 
