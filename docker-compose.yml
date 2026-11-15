@@ -71,6 +71,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: admin
+      # Bind IPv4 explicitly: the default IPv6 bind fails on IPv4-only Docker hosts.
+      PGADMIN_LISTEN_ADDRESS: 0.0.0.0
     ports:
       - "5050:80"
     depends_on:

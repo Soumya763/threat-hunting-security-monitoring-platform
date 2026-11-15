@@ -1,0 +1,14 @@
+# Keep the backend image build context small and free of secrets and local data.
+.git
+**/.env
+**/.env.*
+!**/.env.example
+frontend
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/quarantine
+**/*.quarantine
+**/dist
+**/*.log

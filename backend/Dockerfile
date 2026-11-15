@@ -1,11 +1,21 @@
-# Backend image. Not built or run in the development environment used for this
-# release; see docs/DEPLOYMENT.md for what has and has not been verified.
+# Backend image (FastAPI). Built and run as the `backend` service with the `app` profile;
+# see docs/DEPLOYMENT.md.
 FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 # libmagic is used by python-magic; the platform's own detector does not depend on it.
 RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 \
     && rm -rf /var/lib/apt/lists/*
+
+# TLS trust. Networks that intercept TLS (corporate proxies) re-sign certificates with
+# their own CA. Put that CA (PEM, *.crt) in backend/certs/ before building; the
+# directory is git-ignored except .gitkeep, so CA files are never committed.
+# One bundle (public roots + any extra CA) is used by pip, requests and Python's
+# default SSL context, so provider calls, RDAP and URL analysis all trust the same CAs.
+COPY backend/certs/ /certs/
+RUN python -c "import shutil; from pip._vendor import certifi; shutil.copy(certifi.where(), '/certs/ca-bundle.pem')" \
+    && for f in /certs/*.crt; do [ -f "$f" ] && cat "$f" >> /certs/ca-bundle.pem; done; true
+ENV REQUESTS_CA_BUNDLE=/certs/ca-bundle.pem SSL_CERT_FILE=/certs/ca-bundle.pem PIP_CERT=/certs/ca-bundle.pem
 
 WORKDIR /app
 COPY backend/requirements.txt ./
