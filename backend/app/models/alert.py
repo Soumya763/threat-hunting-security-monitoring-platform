@@ -2,7 +2,7 @@
 Alert model.
 
 Represents a single security alert produced by the detection engine from
-events already flowing into Elasticsearch via the existing Logstash
+events already flowing into OpenSearch via the existing Logstash
 pipelines (firewall, dns, windows, proxy, json). Fields mirror the common
 attributes already present across those pipelines (source_type, severity,
 source_ip/destination_ip, event_type) so the detection stage can populate
@@ -66,7 +66,7 @@ class Alert(Base):
     entity_type: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     entity_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
-    # Traceability back to the originating Elasticsearch document
+    # Traceability back to the originating OpenSearch document (column names kept from the first schema)
     es_index: Mapped[str | None] = mapped_column(String(255), nullable=True)
     es_doc_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

@@ -1,7 +1,7 @@
 """
 FastAPI application entrypoint.
 
-App instance, config, and DB connections (Postgres + Elasticsearch), APIs
+App instance, config, and DB connections (Postgres + OpenSearch), APIs
 for alerts/incidents/audit/auth, and the automatic detection/correlation
 scheduler's startup/shutdown lifecycle (see app.scheduler).
 """

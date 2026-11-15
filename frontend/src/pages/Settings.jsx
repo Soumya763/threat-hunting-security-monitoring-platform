@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPlatformLimits, getProviders } from "../services/api";
+import { getHealth, getPlatformLimits, getProviders } from "../services/api";
 import KeyValue from "../components/KeyValue";
 import Loading from "../components/Loading";
 import ErrorState from "../components/ErrorState";
@@ -13,9 +13,11 @@ export default function Settings() {
   const [providers, setProviders] = useState(null);
   const [limits, setLimits] = useState(null);
   const [error, setError] = useState(null);
+  const [health, setHealth] = useState(null);
 
   function load() {
     setError(null);
+    getHealth().then(setHealth).catch(() => setHealth(null));
     Promise.all([getProviders(), getPlatformLimits()])
       .then(([p, l]) => { setProviders(p); setLimits(l); })
       .catch((err) => setError(errorMessage(err, "Unable to load settings.")));
@@ -34,6 +36,15 @@ export default function Settings() {
         <h2>Account</h2>
         <KeyValue rows={[["Signed in as", username]]} />
         <button type="button" className="btn" onClick={() => { logout(); navigate("/login"); }}>Log out</button>
+      </section>
+
+      <section className="ta-card">
+        <h2>Search and log engine</h2>
+        <KeyValue rows={[
+          ["Engine", "OpenSearch (search and log analytics)"],
+          ["Status", health ? health.opensearch : "unknown"],
+          ["Used by", "Detection rules, Log Monitoring, local-context pivots, Dashboard event counts"],
+        ]} />
       </section>
 
       <section className="ta-card">

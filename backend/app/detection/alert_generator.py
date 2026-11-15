@@ -1,7 +1,7 @@
 """
 Alert generator.
 
-Evaluates a rule's Elasticsearch aggregation response (as returned by
+Evaluates a rule's OpenSearch aggregation response (as returned by
 app.detection.executor.execute_rule) against the rule's `threshold`, and
 writes an Alert row to PostgreSQL for each match that isn't a recent
 duplicate.

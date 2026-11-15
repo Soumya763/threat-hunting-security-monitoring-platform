@@ -336,7 +336,7 @@ def test_log_search_reports_unavailable_as_503_not_as_empty(env, monkeypatch):
         def search(self, **kwargs):
             raise ConnectionError("down")
 
-    monkeypatch.setattr("app.database.elasticsearch.es_client", Down())
+    monkeypatch.setattr("app.database.opensearch.opensearch_client", Down())
     response = env["client"].get("/api/v1/logs/search", headers=_h(env), params={"q": "203.0.113.5"})
     assert response.status_code == 503
 

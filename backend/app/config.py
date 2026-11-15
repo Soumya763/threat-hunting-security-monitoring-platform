@@ -29,8 +29,9 @@ class Settings(BaseSettings):
     postgres_password: str = "postgres"
     postgres_sslmode: str = ""
 
-    # Elasticsearch / OpenSearch-compatible search (single URL)
-    elasticsearch_host: str = "http://localhost:9200"
+    # OpenSearch: the search and log analytics engine (single URL; scheme and
+    # any embedded credentials are read from it, see app/database/opensearch.py).
+    opensearch_host: str = "http://localhost:9200"
 
     # CORS: comma-separated exact origins. Never "*".
     cors_allowed_origins: str = "http://localhost:5173"

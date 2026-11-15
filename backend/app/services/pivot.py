@@ -1,6 +1,6 @@
 """
-Local-context pivots: search the platform's own log indices (OpenSearch, or the
-Elasticsearch container this repository runs) for an indicator.
+Local-context pivots: search the platform's own log indices in OpenSearch for an
+indicator.
 
 Read-only: the query is built here from a validated indicator, never from raw
 user input, and it is limited to the log index patterns in settings and to a
@@ -39,7 +39,7 @@ def _pick(source: dict[str, Any], *keys: str) -> Any:
 
 
 def search_local_context(value: str, *, lookback_days: int | None = None) -> dict[str, Any]:
-    from app.database.elasticsearch import es_client
+    from app.database.opensearch import opensearch_client
 
     days = lookback_days or settings.pivot_lookback_days
     body = {
@@ -61,7 +61,7 @@ def search_local_context(value: str, *, lookback_days: int | None = None) -> dic
             "first_seen": None, "last_seen": None, "samples": [], "message": None,
             "indices": settings.opensearch_log_indices}
     try:
-        response = es_client.search(index=settings.opensearch_log_indices, body=body, request_timeout=8)
+        response = opensearch_client.search(index=settings.opensearch_log_indices, body=body, request_timeout=8)
     except Exception as exc:  # connection, auth, index errors
         logger.warning("Local log pivot failed: %s", type(exc).__name__)
         base["message"] = "Local log search is unavailable, so no conclusion can be drawn from it."

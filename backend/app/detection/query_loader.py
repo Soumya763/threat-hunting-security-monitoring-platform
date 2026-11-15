@@ -3,7 +3,7 @@ Detection rule loader.
 
 Loads YAML threat-hunting rule files from threat_hunting_queries/templates/
 and returns their parsed, validated content. This only loads rules — it
-does not execute queries against Elasticsearch, schedule anything, or
+does not execute queries against OpenSearch, schedule anything, or
 generate alerts (those are separate, later stages).
 """
 

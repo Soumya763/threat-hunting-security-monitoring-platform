@@ -4,8 +4,8 @@
 #   mitre_tactic     - MITRE ATT&CK tactic (ID + name)
 #   mitre_technique  - MITRE ATT&CK technique (ID + name)
 #   severity         - low | medium | high | critical
-#   index            - Elasticsearch index pattern to query
-#   query            - Elasticsearch Query DSL (filters + aggregations)
+#   index            - OpenSearch index pattern to query
+#   query            - OpenSearch Query DSL (filters + aggregations)
 #   threshold        - condition on the aggregation result. Keys:
 #       aggregation             - sub-aggregation name holding the metric, or "_count"
 #       min_count               - alert when the metric is >= this value

@@ -101,7 +101,7 @@ def search_logs(
     current_user: User = Depends(get_current_user),
 ):
     """Read-only search over indexed log events (Log Monitoring)."""
-    from app.database.elasticsearch import es_client
+    from app.database.opensearch import opensearch_client
 
     body = {
         "size": size,
@@ -114,7 +114,7 @@ def search_logs(
                  "sources": {"terms": {"field": "source_type.keyword", "size": 10}}},
     }
     try:
-        response = es_client.search(index=settings.opensearch_log_indices, body=body, request_timeout=10)
+        response = opensearch_client.search(index=settings.opensearch_log_indices, body=body, request_timeout=10)
     except Exception:
         raise HTTPException(status_code=503, detail="Log search is unavailable. Check the search service.")
 

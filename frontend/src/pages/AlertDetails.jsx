@@ -97,8 +97,8 @@ export default function AlertDetails() {
     ["Destination IP", alert.destination_ip || "—"],
     ["MITRE Tactic", alert.mitre_tactic || "—"],
     ["MITRE Technique", alert.mitre_technique || "—"],
-    ["Elasticsearch Index", alert.es_index || "—"],
-    ["Elasticsearch Doc ID", alert.es_doc_id || "—"],
+    ["Search index", alert.es_index || "—"],
+    ["Source document ID", alert.es_doc_id || "—"],
     [
       "Incident",
       alert.incident_id ? (

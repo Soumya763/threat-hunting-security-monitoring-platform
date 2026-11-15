@@ -34,7 +34,7 @@ def test_pivot_escapes_quotes_and_reports_matches(monkeypatch):
                                                         "source": {"ip": "203.0.113.9"}, "message": "DROP"}}]},
         "aggregations": {"event_types": {"buckets": [{"key": "firewall_connection_denied", "doc_count": 2}]},
                          "first_seen": {"value_as_string": "a"}, "last_seen": {"value_as_string": "b"}}})
-    monkeypatch.setattr("app.database.elasticsearch.es_client", fake)
+    monkeypatch.setattr("app.database.opensearch.opensearch_client", fake)
     result = pivot.search_local_context('evil"query')
     assert result["status"] == "ok" and result["total"] == 2
     assert result["samples"][0]["source_ip"] == "203.0.113.9"
@@ -42,14 +42,14 @@ def test_pivot_escapes_quotes_and_reports_matches(monkeypatch):
 
 
 def test_pivot_unreachable_search_is_unavailable_never_no_events(monkeypatch):
-    monkeypatch.setattr("app.database.elasticsearch.es_client", FakeES(error=ConnectionError("down")))
+    monkeypatch.setattr("app.database.opensearch.opensearch_client", FakeES(error=ConnectionError("down")))
     result = pivot.search_local_context("8.8.8.8")
     assert result["status"] == "unavailable" and result["total"] is None
     assert "unavailable" in result["message"]
 
 
 def test_pivot_zero_hits_says_no_matching_events(monkeypatch):
-    monkeypatch.setattr("app.database.elasticsearch.es_client", FakeES({"hits": {"total": {"value": 0}, "hits": []},
+    monkeypatch.setattr("app.database.opensearch.opensearch_client", FakeES({"hits": {"total": {"value": 0}, "hits": []},
                                                                         "aggregations": {}}))
     assert pivot.search_local_context("x.example")["message"].startswith("No matching events")
 
