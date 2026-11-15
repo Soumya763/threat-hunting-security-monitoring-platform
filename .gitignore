@@ -35,3 +35,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Quarantined uploads and local analysis storage (never commit uploaded content)
+backend/quarantine/
+*.quarantine

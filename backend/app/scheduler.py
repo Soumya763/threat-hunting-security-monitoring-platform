@@ -55,6 +55,13 @@ def _run_cycle_sync() -> None:
         total_alerts += len(new_alerts)
 
     try:
+        from app.services.quarantine import purge_expired
+
+        purge_expired()
+    except Exception:
+        logger.exception("Retention purge failed")
+
+    try:
         new_incidents = run_correlation()
     except Exception:
         logger.exception("Correlation pass failed")
