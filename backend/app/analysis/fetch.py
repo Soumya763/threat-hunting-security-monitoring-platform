@@ -53,10 +53,14 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
     def __init__(self, pinned_ip: str, host: str, port: int, timeout: float, context: ssl.SSLContext):
         super().__init__(host, port, timeout=timeout, context=context)
         self._pinned_ip = pinned_ip
+        self.peer_certificate: dict = {}
 
     def connect(self) -> None:
         raw = socket.create_connection((self._pinned_ip, self.port), self.timeout)
         self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+        # Keep the verified certificate now: with "Connection: close" http.client
+        # discards the socket once the response is read, so it is no longer available later.
+        self.peer_certificate = self.sock.getpeercert() or {}
 
 
 def _host_header(host: str, port: int, scheme: str) -> str:
@@ -114,8 +118,8 @@ def fetch_one(info: dict[str, Any], ip: str, *, timeout: float, max_body: int) -
             body = response.read(max_body)
 
         tls = None
-        if scheme == "https" and conn.sock is not None:
-            tls = _describe_certificate(conn.sock.getpeercert() or {})
+        if scheme == "https" and conn.peer_certificate:
+            tls = _describe_certificate(conn.peer_certificate)
         return {"status": response.status, "headers": resp_headers, "body": body, "tls": tls}
     finally:
         conn.close()
@@ -129,9 +133,9 @@ def _tls_problem_message(exc: ssl.SSLError) -> str:
     if "expired" in lowered:
         return "Certificate has expired."
     if "self-signed" in lowered or "self signed" in lowered:
-        return "Certificate is self-signed."
+        return "The certificate chain is not trusted: a self-signed certificate is in the chain."
     if "unable to get local issuer" in lowered or "unknown ca" in lowered or "issuer" in lowered:
-        return "Certificate issuer is not trusted."
+        return "The certificate issuer is not trusted by this server."
     return "TLS certificate verification failed."
 
 

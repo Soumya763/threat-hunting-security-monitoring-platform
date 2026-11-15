@@ -233,16 +233,18 @@ def file_factors(
                     reason="The archive exceeded entry, size or compression-ratio limits.",
                     evidence={"limit": static.get("limit_exceeded"), "max_ratio": static.get("max_compression_ratio")},
                 ))
-            if static.get("has_vba_macro") and not static.get("office"):
+            # Container evidence: a vbaProject.bin entry counts even when the VBA
+            # parser cannot read it, so a macro container is never scored as clean.
+            if static.get("has_vba_macro"):
                 factors.append(Factor(
                     code="office_macro_present",
                     label="Office macro project present",
                     points=10,
-                    reason="The container holds a VBA macro project.",
+                    reason="The container holds a VBA macro project (vbaProject.bin).",
                 ))
-            office_part = static.get("office") or (static if kind == "office" else None)
+            office_part = static.get("office")
             if office_part:
-                factors.extend(_office_factors(office_part))
+                factors.extend(_office_factors(office_part, include_macro=False))
 
         if kind == "office":
             factors.extend(_office_factors(static))
@@ -310,9 +312,9 @@ def file_factors(
     return factors
 
 
-def _office_factors(office_part: dict[str, Any]) -> list[Factor]:
+def _office_factors(office_part: dict[str, Any], include_macro: bool = True) -> list[Factor]:
     out = []
-    if office_part.get("has_macros"):
+    if include_macro and office_part.get("has_macros"):
         out.append(Factor(
             code="office_macro_present",
             label="Office macro project present",

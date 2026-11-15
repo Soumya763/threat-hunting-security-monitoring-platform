@@ -154,3 +154,31 @@ def test_known_malicious_hash_and_detections_score_high():
     codes = {f["code"] for f in r["factors"]}
     assert {"known_malicious_hash", "engine_detections", "native_executable"} <= codes
     assert r["score"] >= 50
+
+
+def test_macro_container_is_scored_even_when_vba_parser_cannot_read_it():
+    """Regression: a DOCX with a vbaProject.bin the parser cannot read scored 0 before."""
+    from app.analysis import static as static_mod
+    data = _zip({"[Content_Types].xml": b"<Types/>", "word/document.xml": b"<w/>",
+                 "word/vbaProject.bin": b"\x00" * 64})
+    static_result = static_mod.analyze_static("zip_container", data, "macro-test.docx")
+    assert static_result["has_vba_macro"] is True
+    ident = filetype.identify("macro-test.docx", data[:8192])
+    r = scoring.build_file_score(ident, static_result, None, None, malwarebazaar_hit=False,
+                                 detections=[], otx_pulses=0, consulted_sources=0, local_complete=True)
+    codes = [f["code"] for f in r["factors"]]
+    assert codes.count("office_macro_present") == 1
+    assert r["score"] >= 10
+
+
+def test_macro_factor_is_not_double_counted_when_office_parser_reads_macros():
+    static_result = {"kind": "zip", "is_ooxml": True, "has_vba_macro": True, "executables": [],
+                     "path_traversal_entries": [], "nested_archives": [], "limit_exceeded": None,
+                     "is_suspicious_bomb": False,
+                     "office": {"kind": "office", "has_macros": True, "auto_exec_keywords": ["AutoOpen"],
+                                "suspicious_keywords": [], "macro_module_count": 1}}
+    ident = {"detected_family": "zip_container", "extension_matches": True, "warnings": []}
+    factors = scoring.file_factors(ident, static_result, None, None)
+    codes = [f.code for f in factors]
+    assert codes.count("office_macro_present") == 1
+    assert "office_auto_exec" in codes

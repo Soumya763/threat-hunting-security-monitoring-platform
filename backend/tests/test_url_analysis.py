@@ -148,3 +148,49 @@ def test_invalid_or_private_submission_never_reaches_the_network(monkeypatch):
     monkeypatch.setattr(url_pipeline, "lookup_domain", boom)
     with pytest.raises(UnsafeURLError):
         url_pipeline.analyze_url("http://127.0.0.1/admin", gateway=StubGateway())
+
+
+def test_unresolvable_host_marks_dns_step_failed_and_analysis_partial(monkeypatch):
+    """Regression: a host with no public address was reported as a complete analysis."""
+    result = _run(
+        monkeypatch,
+        url="https://nothing-here.invalid/",
+        dns={"A": [], "AAAA": [], "public": [], "non_public": [], "error": None},
+        fetch={**_fetch(), "blocked": "The host name could not be resolved.", "body": b"", "status": None,
+               "final_url": None, "hops": [{"url": "https://nothing-here.invalid/", "status": None,
+                                            "blocked": "The host name could not be resolved."}]},
+        rdap={"status": "not_found", "message": "none"},
+        gateway=StubGateway(),
+    )
+    dns_step = next(s for s in result["steps"] if s["name"] == "DNS lookup")
+    assert dns_step["status"] == "failed"
+    assert "public address" in dns_step["message"]
+    assert result["analysis_status"] == "partial"
+    assert result["local_checks_complete"] is False
+
+
+def test_tls_problem_messages_describe_the_actual_failure():
+    import ssl
+    from app.analysis.fetch import _tls_problem_message
+
+    class E(ssl.SSLError):
+        def __init__(self, msg):
+            super().__init__(msg)
+
+    assert "self-signed" in _tls_problem_message(E("certificate verify failed: self-signed certificate in certificate chain"))
+    assert "issuer is not trusted" in _tls_problem_message(E("unable to get local issuer certificate"))
+    assert "expired" in _tls_problem_message(E("certificate has expired"))
+    assert "does not match" in _tls_problem_message(E("Hostname mismatch, certificate is not valid for 'x'"))
+
+
+def test_registration_data_alone_never_makes_an_indicator_clean():
+    """Regression: RDAP (registration data) answered 'ok' and made an unconfigured domain 'clean'."""
+    from app.services.indicator_search import threat_sources_consulted
+    providers = {
+        "VirusTotal": base.result("VirusTotal", "domain", "x", base.STATUS_NOT_CONFIGURED),
+        "AlienVault OTX": base.result("OTX", "domain", "x", base.STATUS_NOT_CONFIGURED),
+        "RDAP": base.result("RDAP", "domain", "x", base.STATUS_OK, summary={"age_days": 3000}),
+    }
+    assert threat_sources_consulted(providers) == 0
+    providers["VirusTotal"] = base.result("VirusTotal", "domain", "x", base.STATUS_OK, detection=(0, 80))
+    assert threat_sources_consulted(providers) == 1

@@ -347,3 +347,10 @@ def test_rate_limit_returns_429_after_the_window_quota(env, monkeypatch):
     codes = [client.post("/api/v1/urls", headers=_h(env), json={"url": f"https://example{i}.com/"}).status_code
              for i in range(3)]
     assert codes == [202, 202, 429]
+
+
+def test_opensearch_client_logs_are_quieted_but_app_errors_remain():
+    """Regression: every failed OpenSearch request logged a full stack trace."""
+    import logging
+    import app.main  # noqa: F401  (applies the logging configuration)
+    assert logging.getLogger("opensearch").level == logging.ERROR

@@ -22,6 +22,10 @@ from app.config import settings
 from app.scheduler import lifespan
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# opensearch-py logs a full stack trace for every failed request. The application already
+# logs each failure once with context (pivots, detection, health), so keep only real errors.
+logging.getLogger("opensearch").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 app = FastAPI(
     title="Threat Hunting & Security Monitoring Platform",

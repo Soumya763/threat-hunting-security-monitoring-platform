@@ -83,7 +83,12 @@ def analyze_url(raw_url: str, *, gateway=None, submit_to_urlscan: bool = False) 
         steps.append(_step("DNS lookup", "skipped", "Host is an IP address."))
     else:
         dns = lookup_addresses(host)
-        steps.append(_step("DNS lookup", "failed" if dns["error"] else "complete", dns["error"]))
+        if dns["error"]:
+            steps.append(_step("DNS lookup", "failed", dns["error"]))
+        elif not dns["public"]:
+            steps.append(_step("DNS lookup", "failed", "The host did not resolve to a public address."))
+        else:
+            steps.append(_step("DNS lookup", "complete"))
 
     # 3. Guarded fetch
     fetch = fetch_with_redirects(normalized)
@@ -182,7 +187,8 @@ def analyze_url(raw_url: str, *, gateway=None, submit_to_urlscan: bool = False) 
 
     # Local checks are complete when DNS answered and the fetch either succeeded
     # or was deliberately blocked by the SSRF guard (a blocked hop is a finding).
-    local_complete = (not dns["error"]) and (fetch_error is None)
+    dns_ok = ip_host or (not dns["error"] and bool(dns["public"]))
+    local_complete = dns_ok and (fetch_error is None)
 
     factor_inputs = dict(
         host=host,

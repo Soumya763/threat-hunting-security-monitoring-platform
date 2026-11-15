@@ -204,3 +204,41 @@ def test_real_pinned_transport_sends_host_header_and_caps_body():
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_tls_certificate_details_survive_connection_close(tmp_path, monkeypatch):
+    """Regression: the certificate was read after 'Connection: close' had discarded the socket,
+    so TLS details were always empty. This performs a real TLS handshake with a throwaway
+    certificate trusted only by this test."""
+    import shutil, subprocess
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl binary not available")
+    cert, key = tmp_path / "cert.pem", tmp_path / "key.pem"
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key),
+                    "-out", str(cert), "-days", "2", "-subj", "/CN=localhost",
+                    "-addext", "subjectAltName=DNS:localhost"], check=True, capture_output=True)
+
+    server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_ctx.load_cert_chain(cert, key)
+    httpd = http.server.HTTPServer(("127.0.0.1", 0), _Handler)
+    httpd.socket = server_ctx.wrap_socket(httpd.socket, server_side=True)
+    port = httpd.server_address[1]
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+
+    original_context = ssl.create_default_context
+
+    def trusting_context():
+        return original_context(cafile=str(cert))
+
+    monkeypatch.setattr(fetch_mod.ssl, "create_default_context", trusting_context)
+    try:
+        info = {"host": "localhost", "port": port, "scheme": "https", "url": f"https://localhost:{port}/"}
+        response = fetch_mod.fetch_one(info, "127.0.0.1", timeout=5, max_body=100)
+        assert response["status"] == 200
+        assert response["tls"] is not None and response["tls"]["verified"] is True
+        assert "localhost" in response["tls"]["subject"]
+        assert response["tls"]["not_after"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()

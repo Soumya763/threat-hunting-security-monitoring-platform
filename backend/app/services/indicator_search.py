@@ -75,6 +75,18 @@ def detect_indicator(query: str) -> tuple[str, str]:
     )
 
 
+def threat_sources_consulted(providers: dict) -> int:
+    """Count threat-intelligence sources that answered (ok or not_found).
+
+    RDAP is registration data, not a threat source, so it never justifies a
+    "clean" classification on its own.
+    """
+    return sum(
+        1 for name, r in providers.items()
+        if name != "RDAP" and r["status"] in base.CONSULTED_STATUSES
+    )
+
+
 def _local_history(db: Session, owner_id: int, indicator_type: str, value: str, exclude_id: int) -> list[dict[str, Any]]:
     stmt = (
         select(Analysis)
@@ -173,7 +185,7 @@ def run_indicator_search(analysis_id: int, *, session_factory, gateway=None) -> 
                     "cached": False,
                 }
 
-        consulted = sum(1 for r in providers_out.values() if r["status"] in base.CONSULTED_STATUSES)
+        consulted = threat_sources_consulted(providers_out)
         detections = []
         for name, r in providers_out.items():
             if r["status"] == base.STATUS_OK and r.get("detection"):
