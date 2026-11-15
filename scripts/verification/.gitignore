@@ -1,0 +1,4 @@
+# Generated locally: fixtures, mock-provider request logs
+.fixtures/
+mock_requests.jsonl
+__pycache__/
