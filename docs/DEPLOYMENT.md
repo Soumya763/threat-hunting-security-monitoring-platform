@@ -2,10 +2,14 @@
 
 ## Local development (verified path)
 
-1. **Infrastructure** (PostgreSQL, Elasticsearch-compatible search, Logstash, pgAdmin):
+1. **Infrastructure** (PostgreSQL, OpenSearch, Logstash with the OpenSearch output plugin):
    ```bash
-   docker compose up -d postgres elasticsearch logstash
+   # Linux hosts need this kernel setting for OpenSearch (not persistent across reboots):
+   sudo sysctl -w vm.max_map_count=262144
+   docker compose up -d postgres opensearch logstash
+   curl http://localhost:9200/_cluster/health?pretty   # expect "status" : "green" (or yellow)
    ```
+   Docker Desktop on Windows/macOS: give its Linux VM at least 4 GB of memory.
 2. **Backend**:
    ```bash
    cd backend
@@ -25,9 +29,8 @@
    ```
 4. Open http://localhost:5173, sign in, and check the Dashboard status (API Connected).
 
-The search service is needed only for Log Monitoring, local pivots and the Dashboard's
-event counts. Without it the platform still works, and those features say they are
-unavailable.
+OpenSearch is needed for Log Monitoring, local-context pivots and the detection rules. Without it the
+platform still runs, and those features report that the search engine is unavailable.
 
 ## Docker (optional backend container; not built in this environment)
 
@@ -46,8 +49,9 @@ serve `frontend/dist` from any static host.
 ## Production checklist
 - Set `JWT_SECRET_KEY` to a fresh random value, and keep `.env` out of version control.
 - Set `CORS_ALLOWED_ORIGINS` to the exact frontend origin only.
-- Put the search service on a private network with authentication and TLS. The repository's
-  default compose file has security disabled and publishes ports; that is development-only.
+- Run OpenSearch with its security plugin enabled (users, roles, TLS) on a private network. The
+  repository's compose file sets `DISABLE_SECURITY_PLUGIN=true` and publishes port 9200 for
+  local development only. Put credentials in `OPENSEARCH_HOST` (`https://user:pass@host:port`).
 - Set `QUARANTINE_DIR` to a directory outside any web root, on a volume with backups
   disabled for uploaded samples if your policy requires it.
 - Choose `FILE_RETENTION_HOURS` and `URLSCAN_VISIBILITY` deliberately.

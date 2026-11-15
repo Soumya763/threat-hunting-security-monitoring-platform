@@ -6,7 +6,7 @@ implementation:
 
 | Decision | Reason |
 |---|---|
-| Keep the existing stack; use the Elasticsearch 8.15.3 container with the existing `opensearch-py` client | The repository already runs this combination. Switching engines was outside the brief. |
+| Use OpenSearch 2.19.7 as the search engine everywhere (compose, Logstash output, backend client) | The project's search engine is OpenSearch. The compose file had been running Elasticsearch 8.15.3 with an OpenSearch-compatible client, which contradicted the project's design. It is now corrected. |
 | Analysis runs in FastAPI background tasks; the UI polls | No extra worker service is needed for a student deployment. Step timeouts keep requests bounded. |
 | Store analysis results as JSON in PostgreSQL; files only in quarantine | Keeps the database small, keeps bytes out of backups by default, and lets reports render without re-fetching. |
 | Use the existing `audit_logs` table for analysis actions | Reuses the audit trail and its UI rather than adding a second log. |
@@ -20,7 +20,7 @@ implementation:
 
 ## Open items for the team
 1. Run one live check per provider with your own keys and record the results.
-2. Start the search service and verify the detection rules and local pivots against real events.
+2. Verify the detection rules and pivots against real events from the live pipelines (done in this release, see TESTING.md).
 3. Tune scoring weights on a labelled set of benign and malicious samples (EICAR and synthetic files are not enough).
 4. Decide whether to keep `rdap.org` or use the registry-specific servers directly.
 5. Confirm your VirusTotal account type and whether the project's use is non-commercial.

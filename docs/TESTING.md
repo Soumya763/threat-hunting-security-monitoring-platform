@@ -36,11 +36,11 @@ Current result: **197 passed** (20 pre-existing plus new tests).
   expected 503 from that search call.
 
 ### Not verified in this environment
-- OpenSearch / Elasticsearch queries: the pivot and log search code is covered only with fake clients.
-  Run `docker compose up -d` and then search for a known event to verify.
+- Production-grade OpenSearch security (roles, TLS, managed endpoints). Only the local,
+  security-disabled development container was tested.
 - Live provider calls (VirusTotal, MalwareBazaar, OTX, urlscan.io, AbuseIPDB, RDAP). Use real keys
   in a private `.env` and check one indicator per provider.
-- Docker image build (`docker compose --profile app up --build`).
+- Docker image build for the backend (`docker compose --profile app up --build`).
 
 ## Frontend
 

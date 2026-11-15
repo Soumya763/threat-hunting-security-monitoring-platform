@@ -7,8 +7,8 @@ One platform, one database per concern:
 - **PostgreSQL** holds application records: users, alerts, incidents, notes, audit
   logs, analyses (file, URL and indicator), analysis notes and incident links, and the
   threat-intelligence response cache.
-- **OpenSearch-compatible search** (the Elasticsearch 8.15.3 container in
-  `docker-compose.yml`, accessed through `opensearch-py`) holds the ingested security
+- **OpenSearch** (service `opensearch`, image `opensearchproject/opensearch:2.19.7`, in
+  `docker-compose.yml`; accessed with the `opensearch-py` client) holds the ingested security
   events. Detection rules, Log Monitoring and local-context pivots read from it.
   Nothing application-level is written there.
 
@@ -24,6 +24,28 @@ React SOC UI ──► FastAPI ───┼── analyses, notes, links, audit,
                   ├── quarantine/ (uploaded bytes, owner-only, retention purge)
                   └── providers: VirusTotal · MalwareBazaar · OTX · urlscan.io · AbuseIPDB · RDAP
 ```
+
+## Search engine
+
+OpenSearch is the search and log analytics engine for the whole platform.
+
+| Component | Connects to OpenSearch | Configuration |
+|---|---|---|
+| Logstash (5 pipelines + `logstash.config`) | `opensearch { hosts => ["http://opensearch:9200"] }` using the OpenSearch output plugin in `opensearchproject/logstash-oss-with-opensearch-output-plugin:8.9.0` | `logstash/pipelines/*.conf` |
+| Detection engine (`app/detection/executor.py`) | `opensearch-py` client, shared instance `app/database/opensearch.py` | `OPENSEARCH_HOST` |
+| Local-context pivots and Log Monitoring (`app/services/pivot.py`, `app/api/platform.py`) | same client, read-only | `OPENSEARCH_LOG_INDICES`, `PIVOT_LOOKBACK_DAYS` |
+| Health check (`GET /health`) | `ping()` on the same client; key `opensearch` | `OPENSEARCH_HOST` |
+| SOC dashboard | reads through the API only; never talks to OpenSearch directly | Settings → Search and log engine shows the status |
+
+Why the Logstash image differs from the stock Logstash image: the stock image ships the
+`elasticsearch` output, which refuses to write to OpenSearch. The OpenSearch image bundles
+`logstash-output-opensearch`.
+
+Why `opensearch-py` and not `elasticsearch-py`: `elasticsearch-py` 8.x refuses to talk to
+OpenSearch servers.
+
+The database column names `alerts.es_index` and `alerts.es_doc_id` keep their original
+names so no schema migration is needed. Their meaning is the OpenSearch index and document.
 
 ## Modules
 

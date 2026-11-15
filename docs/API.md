@@ -114,8 +114,8 @@ if a file's bytes were purged by retention.
 - `GET /api/v1/dashboard/summary` → alert and incident counts by severity and status, your analysis
   counts by type and risk, a 14-day alert trend, and the latest analyses and incidents.
 - `GET /api/v1/logs/search?q=event_type:firewall_connection_denied&minutes=1440&size=50` → read-only
-  event search. `503` when the search service is unreachable.
-- `GET /health` → `{ "api": "ok", "postgres": "ok", "elasticsearch": "unreachable" }`
+  event search. `503` when OpenSearch is unreachable.
+- `GET /health` → `{ "api": "ok", "postgres": "ok", "opensearch": "unreachable" }`
 
 ## Error format
 Errors use FastAPI's `{ "detail": "..." }`. Messages are written for users and do not include

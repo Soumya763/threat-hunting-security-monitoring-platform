@@ -77,3 +77,11 @@ implemented in code and covered by tests unless marked otherwise.
 - No malware sandbox. Dynamic analysis is out of scope.
 - Log search accepts Lucene query syntax from analysts. It is read-only and limited to the
   log index patterns, but a broad query can still be expensive.
+
+## Search engine (OpenSearch)
+- The local development container runs with `DISABLE_SECURITY_PLUGIN=true` and publishes port
+  9200. Anyone who can reach that port can read and write indices. Use it only on a
+  development machine.
+- Production must run OpenSearch with its security plugin (users, roles, TLS) on a private
+  network. Give the backend and Logstash only the credentials they need, through
+  `OPENSEARCH_HOST` and the Logstash output settings.

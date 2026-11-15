@@ -10,7 +10,7 @@ A security operations platform that combines three things in one application:
    (OpenSearch), so a suspicious hash, domain or IP can be traced to internal activity.
 
 The platform is built on the existing stack: React + Vite, FastAPI, PostgreSQL, Logstash,
-an OpenSearch-compatible search index, and Docker Compose.
+OpenSearch (the search and log analytics engine), and Docker Compose.
 
 > **Live demo:** the public demo was deployed before this expansion, and it does not include
 > the analysis modules. Do not treat it as the current version.
@@ -41,14 +41,14 @@ provider is shown as "not configured".
 | Fix: JSON pipeline index unread by rules | Implemented | Writes `events-json-*`; a rule reads it (producer contract in the rule file) |
 | Fix: frontend Analysis route missing | Implemented | Analysis routes in the new sidebar |
 | Fix: tests needed `JWT_SECRET_KEY` to import | Implemented | Test-only key set in `conftest.py` |
-| Detection rules | Implemented (8) | Brute force, password spraying, port scan, remote-admin access, suspicious DNS, web error burst, app auth failures, lateral movement. Fields validated statically; **not run against OpenSearch** |
+| Detection rules | Implemented and run against live OpenSearch (8) | Brute force, password spraying, port scan, remote-admin access, suspicious DNS, web error burst, app auth failures, lateral movement. Each rule has an integration test against OpenSearch 2.19.7 |
 | File analysis (type, hashes, static, YARA, score, reports) | Implemented | Tested with synthetic files; parser limits listed in the report |
 | URL analysis with SSRF protection | Implemented | Tested with stubbed DNS and HTTP; real network path exercised only against example hosts |
 | Threat-intel search | Implemented | Providers stubbed in tests |
 | VirusTotal, MalwareBazaar, OTX, urlscan.io integrations | Implemented, **not live-tested** | Need your own keys. See [docs/PROVIDERS.md](docs/PROVIDERS.md) |
 | AbuseIPDB | Implemented (existing, reused) | Needs key |
 | RDAP domain data | Implemented, not live-tested | No key |
-| Local log pivots and log search | Implemented, **not live-tested** | Code covered with fake clients; the search service was unavailable in development |
+| Local log pivots and log search | Implemented and live-tested | Verified through the API against OpenSearch 2.19.7 (Logstash → OpenSearch → API) |
 | Analysis history, owner isolation | Implemented and tested | |
 | Analyst notes, incident links, audit | Implemented and tested | |
 | Dashboard summary | Implemented | Counts come from the database |
@@ -65,7 +65,7 @@ provider is shown as "not configured".
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full steps. In short:
 
 ```bash
-docker compose up -d postgres elasticsearch logstash
+docker compose up -d postgres opensearch logstash
 cd backend && cp .env.example .env   # set JWT_SECRET_KEY
 pip install -r requirements.txt
 python -m app.database.migrate
