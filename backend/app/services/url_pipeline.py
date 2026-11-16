@@ -33,6 +33,7 @@ from app.analysis.urlrules import (
     looks_like_hostname,
     registrable_domain,
 )
+from app.config import settings
 from app.services.intel import base, providers
 from app.services.intel.gateway import get_gateway
 from app.services.recommendations import recommend
@@ -149,7 +150,13 @@ def analyze_url(raw_url: str, *, gateway=None, submit_to_urlscan: bool = False) 
         provider_results[f"AbuseIPDB {ip}"] = res
 
     if submit_to_urlscan:
-        provider_results["urlscan submission"] = providers.urlscan.submit_url(normalized)
+        try:
+            provider_results["urlscan submission"] = providers.urlscan.submit_url(normalized)
+        except Exception as exc:  # noqa: BLE001 - a failed submission must not fail the analysis
+            logger.error("urlscan submission failed unexpectedly (%s)", type(exc).__name__)
+            provider_results["urlscan submission"] = base.result(
+                "urlscan.io", "url", normalized, base.STATUS_UNAVAILABLE,
+                message="The urlscan submission failed unexpectedly.")
     steps.append(_step("Threat-intelligence lookups", "complete"))
 
     consulted = sum(1 for r in provider_results.values() if r["status"] in base.CONSULTED_STATUSES)
@@ -214,13 +221,14 @@ def analyze_url(raw_url: str, *, gateway=None, submit_to_urlscan: bool = False) 
         consulted_sources=consulted,
         local_complete=local_complete,
         extra_caveats=caveats,
+        provider_failures=len(provider_failures),
         **factor_inputs,
     )
 
     level = score["level"]
     recommendations = recommend(level, providers_configured=any(
         r["status"] != base.STATUS_NOT_CONFIGURED for r in provider_results.values()),
-        kind="url", consent_available=True)
+        kind="url", consent_available=bool(settings.urlscan_api_key))
     if login_form:
         recommendations.insert(0, "Do not enter credentials on this page.")
 
@@ -274,6 +282,7 @@ def analyze_url(raw_url: str, *, gateway=None, submit_to_urlscan: bool = False) 
         "analysis_status": status,
         "local_checks_complete": local_complete,
         "consulted_sources": consulted,
+        "provider_summary": base.summarize_providers(provider_results),
         "analysed_at": _now().isoformat(),
     }
 

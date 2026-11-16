@@ -354,3 +354,49 @@ def test_opensearch_client_logs_are_quieted_but_app_errors_remain():
     import logging
     import app.main  # noqa: F401  (applies the logging configuration)
     assert logging.getLogger("opensearch").level == logging.ERROR
+
+
+# ---------------------------------------------------------------- provider checks (on demand)
+
+def test_provider_check_requires_login_and_rejects_unknown_providers(env):
+    assert env["client"].post("/api/v1/providers/virustotal/check").status_code == 401
+    assert env["client"].post("/api/v1/providers/not-a-provider/check", headers=_h(env)).status_code == 404
+
+
+def test_provider_check_without_key_reports_not_configured_and_never_leaks(env, monkeypatch):
+    monkeypatch.setattr(settings, "abuseipdb_api_key", "")
+    response = env["client"].post("/api/v1/providers/abuseipdb/check", headers=_h(env))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["configured"] is False
+    assert body["operational"] is None
+    assert body["status"] == "not_configured"
+    assert "ABUSEIPDB_API_KEY" in body["message"]
+
+
+def test_provider_check_result_never_contains_the_key(env, monkeypatch):
+    secret = "SECRET-KEY-MUST-NOT-APPEAR-98765"
+    monkeypatch.setattr(settings, "otx_api_key", secret)
+
+    class Boom:
+        status_code = 401
+
+        def json(self):
+            return {}
+
+    monkeypatch.setattr("app.services.intel.providers.requests.request", lambda *a, **k: Boom())
+    response = env["client"].post("/api/v1/providers/otx/check", headers=_h(env))
+    assert response.status_code == 200
+    assert response.json()["operational"] is False
+    assert secret not in response.text
+
+
+def test_analysis_detail_exposes_provider_summary_after_indicator_search(env):
+    # Indicator search with no providers configured must still report what was and was not checked.
+    response = env["client"].post("/api/v1/indicators/search", headers=_h(env), json={"query": "8.8.8.8"})
+    assert response.status_code in (200, 202)
+    detail = env["client"].get(f"/api/v1/analyses/{response.json()['id']}", headers=_h(env)).json()
+    summary = detail["result"]["provider_summary"]
+    assert set(summary) == {"applicable", "checked", "failed", "not_configured"}
+    assert summary["checked"] == 0
+    assert detail["result"]["classification"] != "clean"

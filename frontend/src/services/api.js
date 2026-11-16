@@ -114,6 +114,11 @@ export function getProviders() {
   return apiClient.get("/api/v1/providers").then((res) => res.data);
 }
 
+/** Test one provider with a benign lookup. Returns status only; keys are never returned. */
+export function checkProvider(providerId) {
+  return apiClient.post(`/api/v1/providers/${encodeURIComponent(providerId)}/check`).then((res) => res.data);
+}
+
 /** Download a protected report. The bearer token is sent; the file is saved locally. */
 export async function downloadReport(path, filename) {
   const res = await apiClient.get(path, { responseType: "blob" });

@@ -220,6 +220,7 @@ def run_indicator_search(analysis_id: int, *, session_factory, gateway=None) -> 
             consulted_sources=consulted,
             local_complete=local_pivot["status"] == "ok",
             extra_caveats=caveats,
+            provider_failures=len(failures),
         )
         level = score["level"]
         if related or (local_pivot.get("total") or 0) > 0:
@@ -246,6 +247,7 @@ def run_indicator_search(analysis_id: int, *, session_factory, gateway=None) -> 
             "recommendations": recommendations,
             "steps": steps,
             "consulted_sources": consulted,
+            "provider_summary": base.summarize_providers(providers_out),
             "analysed_at": datetime.now(timezone.utc).isoformat(),
         }
         row.risk_score = score["score"]

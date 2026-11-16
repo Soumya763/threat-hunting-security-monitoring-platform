@@ -112,6 +112,7 @@ def analyze_file(data: bytes, *, filename: str, sha256: str, owner_id: int | Non
         consulted_sources=consulted,
         local_complete=local_ok,
         extra_caveats=caveats,
+        provider_failures=len(provider_errors),
     )
     level = score["level"]
     configured = any(r["status"] != base.STATUS_NOT_CONFIGURED for r in providers_out.values())
@@ -120,7 +121,7 @@ def analyze_file(data: bytes, *, filename: str, sha256: str, owner_id: int | Non
         providers_configured=configured,
         extension_mismatch=identification.get("extension_matches") is False,
         detected_family=family,
-        consent_available=True,
+        consent_available=bool(settings.virustotal_api_key),
         kind="file",
     )
 

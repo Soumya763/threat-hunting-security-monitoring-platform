@@ -134,7 +134,7 @@ export default function AnalysisHistory() {
                       <td className="ta-break">{item.display_name || item.indicator_value}</td>
                       <td>{item.status}{item.file_available === false && item.kind === "file" ? <span className="ta-tag">file removed</span> : null}</td>
                       <td><RiskBadge level={item.risk_level} /></td>
-                      <td>{item.risk_score ?? "-"}</td>
+                      <td>{item.risk_level === "insufficient_evidence" ? "Not scored" : (item.risk_score ?? "-")}</td>
                       <td><Link to={`/analysis/${item.id}`}>Open</Link></td>
                     </tr>
                   ))}

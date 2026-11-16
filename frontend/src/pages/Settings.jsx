@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getHealth, getPlatformLimits, getProviders } from "../services/api";
+import { checkProvider, getHealth, getPlatformLimits, getProviders } from "../services/api";
 import KeyValue from "../components/KeyValue";
 import Loading from "../components/Loading";
 import ErrorState from "../components/ErrorState";
@@ -14,6 +14,8 @@ export default function Settings() {
   const [limits, setLimits] = useState(null);
   const [error, setError] = useState(null);
   const [health, setHealth] = useState(null);
+  const [checks, setChecks] = useState({});
+  const [checkingId, setCheckingId] = useState(null);
 
   function load() {
     setError(null);
@@ -24,6 +26,15 @@ export default function Settings() {
   }
 
   useEffect(load, []);
+
+  // Runs one benign lookup per provider. The response holds status only, never a key.
+  function runCheck(id) {
+    setCheckingId(id);
+    checkProvider(id)
+      .then((res) => setChecks((c) => ({ ...c, [id]: res })))
+      .catch((err) => setChecks((c) => ({ ...c, [id]: { operational: false, message: errorMessage(err, "The check could not run.") } })))
+      .finally(() => setCheckingId(null));
+  }
 
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!providers || !limits) return <Loading message="Loading settings..." />;
@@ -55,16 +66,41 @@ export default function Settings() {
           with local checks.
         </p>
         <table className="data-table ta-table">
-          <thead><tr><th scope="col">Provider</th><th scope="col">Status</th><th scope="col">Used for</th><th scope="col">Limits and terms</th></tr></thead>
-          <tbody>{providers.map((p) => (
-            <tr key={p.id}>
-              <td>{p.name}<div className="ta-muted ta-small ta-mono">{p.environment_variable}</div></td>
-              <td><span className={`provider-status provider-status--${p.configured ? "ok" : "not_configured"}`}>{p.configured ? "Configured" : "Not configured"}</span></td>
-              <td className="ta-small">{p.supports.join(", ")}</td>
-              <td className="ta-small">{p.limits}</td>
-            </tr>
-          ))}</tbody>
+          <thead><tr><th scope="col">Provider</th><th scope="col">Configuration</th><th scope="col">Operational</th><th scope="col">Used for</th><th scope="col">Limits and terms</th></tr></thead>
+          <tbody>{providers.map((p) => {
+            const check = checks[p.id];
+            const checkable = p.id !== "rdap";
+            return (
+              <tr key={p.id}>
+                <td>{p.name}<div className="ta-muted ta-small ta-mono">{p.environment_variable}</div></td>
+                <td><span className={`provider-status provider-status--${p.configured ? "ok" : "not_configured"}`}>{p.configured ? "Configured" : "Not configured"}</span></td>
+                <td className="ta-small">
+                  {!checkable ? <span className="ta-muted">No check available</span> : (
+                    <>
+                      {check ? (
+                        <span className={`provider-status provider-status--${check.operational === true ? "ok" : check.operational === false ? "unavailable" : "not_found"}`}>
+                          {check.operational === true ? "Working" : check.operational === false ? "Not working" : "Inconclusive"}
+                        </span>
+                      ) : <span className="ta-muted">Not checked yet</span>}
+                      {check ? <div className="ta-muted">{check.message}</div> : null}
+                      <div>
+                        <button type="button" className="btn btn--small" disabled={!p.configured || checkingId === p.id}
+                          onClick={() => runCheck(p.id)}>
+                          {checkingId === p.id ? "Checking..." : "Check now"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </td>
+                <td className="ta-small">{p.supports.join(", ")}</td>
+                <td className="ta-small">{p.limits}</td>
+              </tr>
+            );
+          })}</tbody>
         </table>
+        <p className="ta-muted ta-small">
+          "Check now" makes one benign lookup (for example of example.com) to test the key. It never submits a URL or file.
+        </p>
       </section>
 
       <section className="ta-card">

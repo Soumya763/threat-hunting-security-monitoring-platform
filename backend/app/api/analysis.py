@@ -307,6 +307,16 @@ def list_providers(current_user: User = Depends(get_current_user)):
     ]
 
 
+@router.post("/providers/{provider_id}/check")
+def check_provider_route(provider_id: str, current_user: User = Depends(get_current_user)):
+    """Test one provider with a benign lookup (never a submission). Returns status only, never the key."""
+    from app.services.intel.gateway import check_provider
+
+    if provider_id not in {p["id"] for p in PROVIDER_CATALOG}:
+        raise HTTPException(status_code=404, detail="Unknown provider.")
+    return check_provider(provider_id)
+
+
 # ---------------------------------------------------------------- notes & incidents
 
 @router.get("/analyses/{analysis_id}/notes")

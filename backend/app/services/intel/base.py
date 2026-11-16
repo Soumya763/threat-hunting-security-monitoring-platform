@@ -99,3 +99,22 @@ class MemoryCache:
     def set(self, provider: str, indicator_type: str, indicator: str, payload: dict[str, Any], ttl_seconds: float) -> None:
         with self._lock:
             self._items[(provider, indicator_type, indicator)] = (time.time() + ttl_seconds, payload)
+
+
+FAILURE_STATUSES = frozenset({STATUS_UNAVAILABLE, STATUS_TIMEOUT, STATUS_INVALID_KEY, STATUS_RATE_LIMITED})
+NOT_APPLICABLE_STATUSES = frozenset({STATUS_UNSUPPORTED, STATUS_SUBMITTED})
+
+
+def summarize_providers(results: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """Counts shown to the analyst: how many providers answered, failed, or were not set up.
+
+    "applicable" excludes providers that do not support the indicator type, so a
+    domain is not counted as a failed IP lookup.
+    """
+    values = list(results.values())
+    return {
+        "applicable": sum(1 for r in values if r["status"] not in NOT_APPLICABLE_STATUSES),
+        "checked": sum(1 for r in values if r["status"] in CONSULTED_STATUSES),
+        "failed": sum(1 for r in values if r["status"] in FAILURE_STATUSES),
+        "not_configured": sum(1 for r in values if r["status"] == STATUS_NOT_CONFIGURED),
+    }
