@@ -115,6 +115,27 @@ by the backend only; the browser never receives them.
 - **Scoring weights are starting values**, not tuned on labelled data.
 - Live provider behaviour with valid keys is not yet verified. See [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
+## Local demonstration (zero budget)
+
+OpenSearch and Logstash run on your machine through Docker Compose. Production runs on free
+services only and has no OpenSearch, so log search there reports unavailable. To see the full
+SOC workflow:
+
+```bash
+docker compose up -d postgres opensearch logstash
+cd backend && cp .env.example .env   # set JWT_SECRET_KEY and POSTGRES_HOST=localhost
+python -m app.database.migrate
+python -m app.auth.create_user analyst <password>
+python -m uvicorn app.main:app --port 8000
+# another terminal
+python ../scripts/verification/logstash_ingestion_check.py   # labelled synthetic events
+cd ../frontend && VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+```
+
+Synthetic events use TEST-NET addresses (203.0.113.0/24) and `syn_*` users, so they cannot be
+mistaken for real activity. Run one detection pass with the scheduler, or wait for it to run
+automatically. Results and limits are in [docs/PRODUCTION-VERIFICATION.md](docs/PRODUCTION-VERIFICATION.md).
+
 ## Configuration
 
 Copy `backend/.env.example` to `backend/.env`. It lists every variable with a comment. Key ones:
@@ -142,7 +163,7 @@ Results, and what each one does and does not prove, are in [docs/TESTING.md](doc
 - [API reference](docs/API.md): endpoints with request and response examples
 - [Providers](docs/PROVIDERS.md): each integration, what is sent, limits and terms to verify
 - [Security](docs/SECURITY.md): file, URL/SSRF, auth, secrets, outputs, known gaps
-- [Testing](docs/TESTING.md) · [Deployment](docs/DEPLOYMENT.md) · [Status and decisions](docs/analysis-expansion-plan.md)
+- [Testing](docs/TESTING.md) · [Deployment](docs/DEPLOYMENT.md) · [Production verification](docs/PRODUCTION-VERIFICATION.md) · [Status and decisions](docs/analysis-expansion-plan.md)
 
 ## Project context
 
