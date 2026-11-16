@@ -18,7 +18,7 @@ import Settings from "./pages/Settings";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { HealthProvider } from "./context/HealthContext";
 
-// Analysis, reports and settings contain private analyst data, so they need a session.
+// Every page with analyst data needs a session: dashboard, alerts, incidents, logs, analysis, reports, settings.
 function RequireAuth({ children }) {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
@@ -39,11 +39,11 @@ function App() {
               <Header />
               <main className="app-content">
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/alerts" element={<Alerts />} />
-                  <Route path="/alerts/:id" element={<AlertDetails />} />
-                  <Route path="/incidents" element={<Incidents />} />
-                  <Route path="/incidents/:id" element={<IncidentDetails />} />
+                  <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+                  <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
+                  <Route path="/alerts/:id" element={<RequireAuth><AlertDetails /></RequireAuth>} />
+                  <Route path="/incidents" element={<RequireAuth><Incidents /></RequireAuth>} />
+                  <Route path="/incidents/:id" element={<RequireAuth><IncidentDetails /></RequireAuth>} />
                   <Route path="/logs" element={<RequireAuth><LogMonitoring /></RequireAuth>} />
                   <Route path="/files" element={<RequireAuth><FileAnalysis /></RequireAuth>} />
                   <Route path="/urls" element={<RequireAuth><UrlAnalysis /></RequireAuth>} />
