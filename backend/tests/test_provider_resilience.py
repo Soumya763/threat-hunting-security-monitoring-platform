@@ -177,3 +177,41 @@ def test_check_targets_are_documented_benign_indicators():
 def test_unknown_provider_cannot_be_checked():
     assert check_provider("rdap")["status"] == base.STATUS_UNSUPPORTED
     assert check_provider("nope")["status"] == base.STATUS_UNSUPPORTED
+
+
+# ---------------------------------------------------------------- auth status mapping (regression)
+
+def test_otx_check_validates_the_key_on_user_endpoint_not_public_indicator(monkeypatch):
+    monkeypatch.setattr(settings, "otx_api_key", SECRET)
+    calls = _fake_requests(monkeypatch, Resp(403, {}))
+    out = check_provider("otx")
+    assert calls and calls[0][1].endswith("/user/me"), "a public indicator endpoint would accept any key"
+    assert out["operational"] is False
+    assert out["status"] == base.STATUS_INVALID_KEY
+
+
+def test_otx_check_accepts_a_key_only_when_user_endpoint_answers(monkeypatch):
+    monkeypatch.setattr(settings, "otx_api_key", SECRET)
+    _fake_requests(monkeypatch, Resp(200, {"username": "demo"}))
+    out = check_provider("otx")
+    assert out["operational"] is True and out["status"] == base.STATUS_OK
+
+
+def test_urlscan_bad_key_format_is_invalid_key_not_unavailable(monkeypatch):
+    monkeypatch.setattr(settings, "urlscan_api_key", SECRET)
+
+    class Bad400(Resp):
+        text = '{"message": "Invalid API key format", "status": 400}'
+
+    _fake_requests(monkeypatch, Bad400(400, {}))
+    out = check_provider("urlscan")
+    assert out["status"] == base.STATUS_INVALID_KEY
+    assert out["operational"] is False
+
+
+def test_malwarebazaar_forbidden_is_invalid_key_not_unavailable(monkeypatch):
+    monkeypatch.setattr(settings, "malwarebazaar_auth_key", SECRET)
+    _fake_requests(monkeypatch, Resp(403, {"query_status": "unknown_auth_key"}))
+    out = check_provider("malwarebazaar")
+    assert out["status"] == base.STATUS_INVALID_KEY
+    assert out["operational"] is False
