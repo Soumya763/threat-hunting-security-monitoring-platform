@@ -12,9 +12,10 @@ A security operations platform that combines three things in one application:
 The platform is built on the existing stack: React + Vite, FastAPI, PostgreSQL, Logstash,
 OpenSearch (the search and log analytics engine), and Docker Compose.
 
-> **Live demo:** the public demo was deployed before this expansion, and it does not include
-> the analysis modules. Do not treat it as the current version.
-> https://threat-hunting-security-monitoring.vercel.app/ · API health: https://threat-hunting-security-monitoring.onrender.com/health
+> **Production:** https://threat-hunting-security-monitoring.vercel.app/
+> (frontend) · API: https://threat-hunting-security-monitoring.onrender.com (health: `/health`).
+> The production site has no OpenSearch, no Logstash, and no provider keys yet. See
+> [Production deployment](#production-deployment) for what works and what does not.
 
 ## What you can do
 
@@ -49,7 +50,7 @@ provider is shown as "not configured".
 | AbuseIPDB | Implemented (existing, reused) | Needs key |
 | RDAP domain data | Implemented, not live-tested | No key |
 | Local log pivots and log search | Implemented and live-tested | Verified through the API against OpenSearch 2.19.7 (Logstash → OpenSearch → API) |
-| End-to-end verification | Done; see [docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md) | Backend 219 tests passing (incl. live OpenSearch and PostgreSQL), scripted end-to-end suites in `scripts/verification/` |
+| End-to-end verification | Done; see [docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md) | Backend 220 tests passing (15 live-service tests skipped unless OpenSearch and PostgreSQL are reachable), scripted end-to-end suites in `scripts/verification/` |
 | Analysis history, owner isolation | Implemented and tested | |
 | Analyst notes, incident links, audit | Implemented and tested | |
 | Dashboard summary | Implemented | Counts come from the database |
@@ -76,6 +77,44 @@ python -m uvicorn app.main:app --reload --port 8000
 cd frontend && cp .env.example .env && npm ci && npm run dev
 ```
 
+## Production deployment
+
+| Part | Where | Notes |
+|---|---|---|
+| Frontend (React, Vite) | Vercel: `https://threat-hunting-security-monitoring.vercel.app` | Builds `frontend/` from `main`. `VITE_API_BASE_URL` points at the backend. Public, no Vercel login wall. |
+| Backend (FastAPI) | Render web service (Python, free plan): `https://threat-hunting-security-monitoring.onrender.com` | Builds `backend/` from `main`. Start: `uvicorn app.main:app`. CORS allows only the Vercel origin. |
+| Database (PostgreSQL 18) | Neon project `threat-hunting-platform`, `production` branch | Connected with SSL (`POSTGRES_SSLMODE=require`). Schema migrated with additive changes only. |
+| Search / logs (OpenSearch) | **Not deployed** | Log search returns "unavailable" (HTTP 503). Nothing is faked. |
+| Log ingestion (Logstash) | **Not deployed** | Depends on OpenSearch. |
+| Threat-intel providers | Optional, keys in Render's environment | Without keys each provider shows "not configured". Use **Settings → Check now** after adding a key. |
+
+```
+Browser ──HTTPS──▶ Vercel (static React app)
+                     │  API calls with bearer token
+                     ▼
+                  Render (FastAPI, uvicorn)  ──SSL──▶  Neon (PostgreSQL)
+                     │
+                     └── OpenSearch: not deployed (optional, see limitations)
+```
+
+Secrets (database password, JWT secret, provider keys) live only in the Render environment.
+They are never in the repository, the frontend bundle, logs or reports. Provider keys are read
+by the backend only; the browser never receives them.
+
+### Limitations of this deployment
+
+- **OpenSearch and Logstash are not running**, so log search and Log Monitoring show unavailable.
+  A free managed option (Aiven) exists, but it needs an account and its own connection setup.
+- **Provider integrations are configured per key.** Until a valid key is set, VirusTotal, OTX,
+  urlscan.io, AbuseIPDB and MalwareBazaar report "not configured". Results without keys are
+  "Not scored", never clean.
+- **Free Render plan:** the service sleeps after inactivity, so the first request can take
+  about a minute. It has no persistent disk, so uploaded files in quarantine are not kept
+  across restarts. Analysis records stay in Neon.
+- **Rate limits are per process.** One backend instance is assumed.
+- **Scoring weights are starting values**, not tuned on labelled data.
+- Live provider behaviour with valid keys is not yet verified. See [docs/PROVIDERS.md](docs/PROVIDERS.md).
+
 ## Configuration
 
 Copy `backend/.env.example` to `backend/.env`. It lists every variable with a comment. Key ones:
@@ -83,7 +122,7 @@ Copy `backend/.env.example` to `backend/.env`. It lists every variable with a co
 - `JWT_SECRET_KEY` (required)
 - `QUARANTINE_DIR`, `FILE_MAX_UPLOAD_BYTES`, `FILE_RETENTION_HOURS`
 - `URL_MAX_REDIRECTS`, `URL_FETCH_TIMEOUT_SECONDS`, `URL_MAX_BODY_BYTES`
-- `VIRUSTOTAL_API_KEY`, `MALWAREBAZAAR_AUTH_KEY`, `OTX_API_KEY`, `URLSCAN_API_KEY`, `ABUSEIPDB_API_KEY` (all optional)
+- `VIRUSTOTAL_API_KEY`, `MALWAREBAZAAR_AUTH_KEY`, `OTX_API_KEY`, `URLSCAN_API_KEY`, `ABUSEIPDB_API_KEY` (all optional; sign-up links in [docs/PROVIDERS.md](docs/PROVIDERS.md))
 - `URLSCAN_VISIBILITY` (`unlisted` by default), `PROVIDER_HASH_LOOKUP_ENABLED`
 
 No real credentials are stored in the repository. `.env` is git-ignored.

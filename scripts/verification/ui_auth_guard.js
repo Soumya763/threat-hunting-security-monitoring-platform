@@ -23,7 +23,8 @@ const check = (name, ok, extra = '') => { results.push(ok); console.log(`${ok ? 
   await page.locator('input[type=text]').first().fill('analyst');
   await page.locator('input[type=password]').fill(PW);
   await page.locator('button[type=submit]').click();
-  await page.waitForTimeout(1500);
+  // The API can be slow to wake on a free host: wait for the redirect instead of a fixed delay.
+  await page.waitForURL((u) => !u.toString().includes('/login'), { timeout: 90000 }).catch(() => {});
 
   for (const route of ['/', '/alerts', '/incidents']) {
     await page.goto(BASE + route, { waitUntil: 'networkidle' });
