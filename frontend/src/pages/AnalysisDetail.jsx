@@ -19,6 +19,22 @@ import { errorMessage, formatBytes, isPending, RISK_LABELS } from "../utils/form
 const KIND_LABELS = { file: "File", url: "URL", indicator: "Indicator search" };
 const SEVERITIES = ["low", "medium", "high", "critical"];
 
+/** Insufficient evidence is "not scored": a 0 here must never read as a safe score. */
+function isUnscored(record) {
+  return record.risk_level === "insufficient_evidence";
+}
+
+function ProviderCoverage({ summary }) {
+  const { applicable = 0, checked = 0, failed = 0, not_configured: notConfigured = 0 } = summary;
+  return (
+    <p className="ta-small" role="status">
+      Checked successfully: <strong>{checked} of {applicable}</strong> applicable providers.
+      {" "}Failed: {failed}. Not configured: {notConfigured}.
+      {checked === 0 ? " No provider answered, so this result cannot confirm the item is safe." : null}
+    </p>
+  );
+}
+
 export default function AnalysisDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -136,7 +152,7 @@ export default function AnalysisDetail() {
           </div>
           <p className="ta-muted">{result.classification_label || (pending ? "Analysis in progress..." : RISK_LABELS[record.risk_level] || "No result yet")}</p>
         </div>
-        <ScoreGauge score={record.risk_score} level={record.risk_level} />
+        <ScoreGauge score={isUnscored(record) ? null : record.risk_score} level={record.risk_level} />
       </header>
 
       <div className="ta-actions">
@@ -189,7 +205,7 @@ export default function AnalysisDetail() {
         <section className="ta-card">
           <h2>Why this score</h2>
           <div className="ta-score-line">
-            <strong>Score {record.risk_score ?? "-"} / 100</strong>
+            <strong>{isUnscored(record) ? "Not scored" : `Score ${record.risk_score ?? "-"} / 100`}</strong>
             <span className="ta-muted">Factors add up to the score; the total is capped at 100.</span>
           </div>
           <FactorList factors={result.factors} />
@@ -200,6 +216,7 @@ export default function AnalysisDetail() {
         <section className="ta-card">
           <h2>Threat-intelligence providers</h2>
           <p className="ta-muted">Providers that are not configured are listed, not treated as "no detections".</p>
+          {result.provider_summary ? <ProviderCoverage summary={result.provider_summary} /> : null}
           <ProviderTable providers={result.providers} />
         </section>
       ) : null}

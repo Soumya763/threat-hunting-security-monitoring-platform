@@ -58,10 +58,13 @@ def band_for_score(score: int) -> str:
     return "low"
 
 
-def classify(score: int, *, consulted_sources: int, local_complete: bool) -> str:
+def classify(score: int, *, consulted_sources: int, local_complete: bool, provider_failures: int = 0) -> str:
     if score > 0:
         return band_for_score(score)
-    if local_complete and consulted_sources > 0:
+    # A clean verdict needs a consulted source AND no failed provider. A provider that
+    # crashed, timed out or rejected its key could have held the detection, so its
+    # failure is never read as "nothing found".
+    if local_complete and consulted_sources > 0 and provider_failures == 0:
         return "clean"
     return "insufficient_evidence"
 
@@ -72,13 +75,18 @@ def build_score(
     consulted_sources: int,
     local_complete: bool,
     extra_caveats: list[str] | None = None,
+    provider_failures: int = 0,
 ) -> dict[str, Any]:
     raw_total = sum(f.points for f in factors)
     total = min(SCORE_CAP, max(0, raw_total))
-    level = classify(total, consulted_sources=consulted_sources, local_complete=local_complete)
+    level = classify(total, consulted_sources=consulted_sources, local_complete=local_complete,
+                     provider_failures=provider_failures)
     caveats = [GENERAL_CAVEAT] + list(extra_caveats or [])
     if total == 0 and level != "insufficient_evidence":
         caveats.insert(0, NO_DETECTION_CAVEAT)
+    if total == 0 and provider_failures and level == "insufficient_evidence":
+        caveats.insert(0, "No score was given because one or more providers failed. "
+                          "A missing answer is not evidence that the item is safe.")
     return {
         "score": total,
         "raw_total": raw_total,
@@ -353,6 +361,7 @@ def build_file_score(
     consulted_sources: int,
     local_complete: bool,
     extra_caveats: list[str] | None = None,
+    provider_failures: int = 0,
 ) -> dict[str, Any]:
     factors = file_factors(
         identification, static, yara, strings,
@@ -369,6 +378,7 @@ def build_file_score(
         consulted_sources=consulted_sources,
         local_complete=local_complete,
         extra_caveats=caveats,
+        provider_failures=provider_failures,
     )
 
 
@@ -531,6 +541,7 @@ def build_url_score(
     consulted_sources: int,
     local_complete: bool,
     extra_caveats: list[str] | None = None,
+    provider_failures: int = 0,
     **factor_inputs: Any,
 ) -> dict[str, Any]:
     factors = url_factors(**factor_inputs)
@@ -539,6 +550,7 @@ def build_url_score(
         consulted_sources=consulted_sources,
         local_complete=local_complete,
         extra_caveats=extra_caveats,
+        provider_failures=provider_failures,
     )
 
 
@@ -553,6 +565,7 @@ def indicator_score(
     consulted_sources: int,
     local_complete: bool,
     extra_caveats: list[str] | None = None,
+    provider_failures: int = 0,
 ) -> dict[str, Any]:
     factors: list[Factor] = []
     for source, positives, total in detections:
@@ -588,4 +601,5 @@ def indicator_score(
         consulted_sources=consulted_sources,
         local_complete=local_complete,
         extra_caveats=extra_caveats,
+        provider_failures=provider_failures,
     )

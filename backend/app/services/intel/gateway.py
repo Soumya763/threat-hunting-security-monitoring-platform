@@ -105,6 +105,16 @@ class IntelGateway:
             logger.exception("Intel cache write failed; result returned uncached")
 
     def lookup(self, provider: str, indicator_type: str, value: str) -> dict[str, Any]:
+        """Never raises. An unexpected failure in one provider becomes that provider's result only."""
+        try:
+            return self._lookup(provider, indicator_type, value)
+        except Exception as exc:  # noqa: BLE001 - isolate providers from each other
+            # Log the exception type only: messages may echo request details.
+            logger.error("Provider %s failed unexpectedly (%s)", provider, type(exc).__name__)
+            return base.result(provider, indicator_type, value, base.STATUS_UNAVAILABLE,
+                               message="The provider check failed unexpectedly. Other providers were not affected.")
+
+    def _lookup(self, provider: str, indicator_type: str, value: str) -> dict[str, Any]:
         if provider == "abuseipdb":
             return self._abuseipdb(value)
         client = _PROVIDERS.get(provider)
@@ -161,3 +171,61 @@ def get_gateway() -> IntelGateway:
 
         _gateway = IntelGateway(cache=DbCache(SessionLocal))
     return _gateway
+
+
+# ------------------------------------------------------- on-demand provider check
+
+# Benign, well-known indicators used only to test that a configured key works.
+# These are lookups. The check never submits a URL or file to any service.
+EICAR_SHA256 = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
+CHECK_TARGETS = {
+    "virustotal": ("domain", "example.com"),
+    "otx": ("domain", "example.com"),
+    "urlscan": ("domain", "example.com"),
+    "malwarebazaar": ("sha256", EICAR_SHA256),
+    "abuseipdb": ("ip", "8.8.8.8"),
+}
+
+_CHECK_MESSAGES = {
+    base.STATUS_OK: "The key was accepted and the provider answered.",
+    base.STATUS_NOT_FOUND: "The key was accepted. The provider answered; the test indicator has no record.",
+    base.STATUS_INVALID_KEY: "The provider rejected the configured key.",
+    base.STATUS_RATE_LIMITED: "The check was rate limited. Try again later.",
+    base.STATUS_TIMEOUT: "The provider did not respond in time.",
+    base.STATUS_UNAVAILABLE: "The provider could not be reached or returned an error.",
+}
+
+
+def check_provider(provider_id: str) -> dict[str, Any]:
+    """Test one provider with a benign indicator. Returns status only, never the key."""
+    from datetime import datetime as _dt
+
+    from app.services.intel.providers import PROVIDER_CATALOG
+
+    catalog = {p["id"]: p for p in PROVIDER_CATALOG}
+    now = _dt.now(timezone.utc).isoformat()
+    entry = catalog.get(provider_id)
+    if entry is None or provider_id not in CHECK_TARGETS:
+        return {"id": provider_id, "configured": False, "operational": None, "status": base.STATUS_UNSUPPORTED,
+                "message": "This provider cannot be checked.", "checked_at": now}
+    base_info = {"id": provider_id, "name": entry["name"], "environment_variable": entry["env"]}
+    if not entry["configured"]():
+        return {**base_info, "configured": False, "operational": None, "status": base.STATUS_NOT_CONFIGURED,
+                "message": f"Not configured. Set {entry['env']} in the backend environment.", "checked_at": now}
+
+    indicator_type, value = CHECK_TARGETS[provider_id]
+    gateway = IntelGateway()
+    if provider_id == "abuseipdb":
+        outcome = gateway._abuseipdb(value)
+    else:
+        outcome = _PROVIDERS[provider_id].lookup(indicator_type, value)  # client call, no cache
+
+    status = outcome["status"]
+    if status in base.CONSULTED_STATUSES:
+        operational: bool | None = True
+    elif status == base.STATUS_RATE_LIMITED:
+        operational = None  # inconclusive
+    else:
+        operational = False
+    return {**base_info, "configured": True, "operational": operational, "status": status,
+            "message": _CHECK_MESSAGES.get(status, "The check did not complete."), "checked_at": now}
