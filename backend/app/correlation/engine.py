@@ -1,18 +1,27 @@
 """
 Correlation engine.
 
-Groups related, ungrouped, open alerts into incidents. For now, two alerts
-are considered related when they share the same source_ip OR the same
-event_type, and were created within 15 minutes of each other. Relations
-are transitive (if A relates to B and B relates to C, all three land in
-the same incident) via a union-find over the candidate alerts.
+Groups open, unlinked alerts into incidents. Two alerts are related only
+when BOTH hold:
+  1. they were created within CORRELATION_WINDOW of each other, and
+  2. they share concrete evidence: the same non-empty source_ip, or the
+     same entity (same entity_type AND entity_key, e.g. the same user).
 
-Only considers alerts that are still AlertStatus.open and not yet linked
-to an incident (incident_id IS NULL), so re-running this repeatedly is
-safe and won't disturb alerts already triaged into an incident.
+Sharing an event type is NOT evidence and no longer groups alerts. Alerts
+for two different users from the same rule therefore stay separate.
+Relations are transitive via union-find, so A~B and B~C put A, B and C
+in one incident. Groups are bounded by the same window as each pair, so a
+long chain of alerts cannot span an unbounded time range.
+
+An open, linked incident also absorbs new alerts that share evidence with
+one of its members within ATTACH_WINDOW, so one attack does not spawn a
+new incident every detection cycle.
+
+Only AlertStatus.open alerts with incident_id IS NULL are considered for
+new grouping, so re-running this is safe.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from itertools import combinations
 from typing import Iterable
 
@@ -21,9 +30,10 @@ from app.models.alert import Alert, AlertStatus
 from app.models.incident import Incident, IncidentSeverity, IncidentStatus
 
 CORRELATION_WINDOW = timedelta(minutes=15)
+ATTACH_WINDOW = timedelta(minutes=60)
+_ACTIVE_INCIDENT_STATUSES = (IncidentStatus.open, IncidentStatus.investigating)
 
-# Worst-first severity ordering, used to pick an incident's severity from
-# whichever correlated alert is most severe.
+# Worst-first severity ordering, used to pick an incident's severity.
 _SEVERITY_ORDER = ["critical", "high", "medium", "low"]
 
 
@@ -51,18 +61,25 @@ class _UnionFind:
         return result
 
 
-def _related(a: Alert, b: Alert) -> bool:
-    """
-    Two alerts are related if they were created within CORRELATION_WINDOW
-    of each other AND (share a non-null source_ip OR share event_type).
-    """
-    if abs(a.created_at - b.created_at) > CORRELATION_WINDOW:
+def shared_evidence(a: Alert, b: Alert) -> list[str]:
+    """Describe the concrete evidence two alerts share (empty if none)."""
+    evidence = []
+    if a.source_ip and a.source_ip == b.source_ip:
+        evidence.append(f"source IP {a.source_ip}")
+    if (
+        a.entity_type
+        and a.entity_key
+        and a.entity_type == b.entity_type
+        and a.entity_key == b.entity_key
+    ):
+        evidence.append(f"{a.entity_type} {a.entity_key}")
+    return evidence
+
+
+def _related(a: Alert, b: Alert, window: timedelta = CORRELATION_WINDOW) -> bool:
+    if abs(a.created_at - b.created_at) > window:
         return False
-
-    same_source_ip = a.source_ip is not None and a.source_ip == b.source_ip
-    same_event_type = a.event_type == b.event_type
-
-    return same_source_ip or same_event_type
+    return bool(shared_evidence(a, b))
 
 
 def _incident_severity(alerts: list[Alert]) -> IncidentSeverity:
@@ -80,11 +97,37 @@ def _build_incident_title(alerts: list[Alert]) -> str:
     return f"Correlated incident: {label} ({len(alerts)} alerts)"
 
 
+def _group_evidence(group: list[Alert]) -> list[str]:
+    found: set[str] = set()
+    for i, a in enumerate(group):
+        for b in group[i + 1:]:
+            found.update(shared_evidence(a, b))
+    return sorted(found)
+
+
+def _find_open_incident_for(db, members: list[Alert]) -> Incident | None:
+    """An open incident with a linked alert that shares evidence with a member."""
+    cutoff = datetime.now(timezone.utc) - ATTACH_WINDOW
+    linked = (
+        db.query(Alert)
+        .join(Incident, Alert.incident_id == Incident.id)
+        .filter(Incident.status.in_(_ACTIVE_INCIDENT_STATUSES))
+        .filter(Alert.created_at >= cutoff)
+        .all()
+    )
+    for member in members:
+        for candidate in linked:
+            if _related(member, candidate, ATTACH_WINDOW):
+                return db.get(Incident, candidate.incident_id)
+    return None
+
+
 def run_correlation() -> list[Incident]:
     """
-    Fetch open, ungrouped alerts, cluster related ones, and create an
-    Incident (linking each member alert via incident_id) for every
-    cluster of 2 or more alerts. Returns the newly created incidents.
+    Cluster open, ungrouped alerts by shared evidence. Each cluster of 2+
+    alerts becomes a new Incident, unless an open incident already holds
+    related alerts, in which case the cluster is attached to that
+    incident. Returns the newly created incidents.
     """
     db = SessionLocal()
     created: list[Incident] = []
@@ -96,8 +139,7 @@ def run_correlation() -> list[Incident]:
             .filter(Alert.incident_id.is_(None))
             .all()
         )
-
-        if len(candidates) < 2:
+        if not candidates:
             return []
 
         uf = _UnionFind(a.id for a in candidates)
@@ -108,17 +150,24 @@ def run_correlation() -> list[Incident]:
         by_id = {a.id: a for a in candidates}
 
         for member_ids in uf.groups().values():
-            if len(member_ids) < 2:
-                continue  # no correlation found, leave the alert ungrouped
-
             group_alerts = [by_id[i] for i in member_ids]
 
+            target = _find_open_incident_for(db, group_alerts)
+            if target is not None:
+                for alert in group_alerts:
+                    alert.incident_id = target.id
+                continue
+
+            if len(group_alerts) < 2:
+                continue  # no evidence shared with anything: stay ungrouped
+
+            evidence = _group_evidence(group_alerts)
             incident = Incident(
                 title=_build_incident_title(group_alerts),
                 description=(
-                    f"Auto-correlated from {len(group_alerts)} alerts sharing "
-                    f"source_ip or event_type within "
-                    f"{int(CORRELATION_WINDOW.total_seconds() // 60)} minutes."
+                    f"Auto-correlated from {len(group_alerts)} alerts within "
+                    f"{int(CORRELATION_WINDOW.total_seconds() // 60)} minutes. "
+                    f"Shared evidence: {', '.join(evidence)}."
                 ),
                 severity=_incident_severity(group_alerts),
                 status=IncidentStatus.open,
@@ -143,6 +192,6 @@ def run_correlation() -> list[Incident]:
 if __name__ == "__main__":
     incidents = run_correlation()
     if not incidents:
-        print("No correlated groups found (need 2+ open, ungrouped alerts that match).")
+        print("No correlated groups found.")
     for incident in incidents:
         print(f"Incident id={incident.id} severity={incident.severity} title={incident.title!r}")

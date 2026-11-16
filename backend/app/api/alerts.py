@@ -38,6 +38,8 @@ def _serialize(alert: Alert) -> dict:
         "source_type": alert.source_type,
         "source_ip": alert.source_ip,
         "destination_ip": alert.destination_ip,
+        "entity_type": alert.entity_type,
+        "entity_key": alert.entity_key,
         "es_index": alert.es_index,
         "es_doc_id": alert.es_doc_id,
         "mitre_tactic": alert.mitre_tactic,

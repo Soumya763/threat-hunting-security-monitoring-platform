@@ -1,0 +1,30 @@
+# DNS query for a domain whose name matches suspicious keywords.
+name: "Suspicious DNS Query - Domain Name Matches Malware Keywords"
+description: >
+  The DNS pipeline flags query names containing whole-label keywords such as
+  malware, c2, botnet or phishing (for example malware.ru or c2-server.com).
+  Each flagged domain raises one alert so an analyst can pivot to the
+  domain in the Threat Intelligence Search and to the querying hosts.
+mitre_tactic: "TA0011 - Command and Control"
+mitre_technique: "T1071.004 - Application Layer Protocol: DNS"
+severity: medium
+index: "events-dns-*"
+query:
+  bool:
+    filter:
+      - term:
+          event_type.keyword: "dns_query_suspicious"
+      - range:
+          "@timestamp":
+            gte: "now-15m"
+            lte: "now"
+  aggs:
+    by_domain:
+      terms:
+        field: "dns.query.keyword"
+        size: 50
+threshold:
+  aggregation: "_count"
+  min_count: 1
+  window_minutes: 15
+  entity_type: "domain"

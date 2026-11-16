@@ -6,10 +6,10 @@ const POLL_INTERVAL_MS = 15000;
 const HealthContext = createContext(null);
 
 // Derives a single "operational" | "degraded" | "down" status from the
-// real /health response ({api, postgres, elasticsearch}, each "ok" or an
+// real /health response ({api, postgres, opensearch}, each "ok" or an
 // error string) so Header/Sidebar don't each re-implement this logic.
 function deriveStatus(data) {
-  const values = [data.api, data.postgres, data.elasticsearch];
+  const values = [data.api, data.postgres, data.opensearch];
   if (values.every((v) => v === "ok")) return "operational";
   return "degraded";
 }

@@ -6,7 +6,7 @@ Guards against the exact production bug this test was written for:
 opensearch-py 3.2.0's OpenSearch.search() only accepts a `body` keyword
 argument (plus index/params/headers) - it does NOT accept top-level
 query/aggs/size as separate keyword arguments the way elasticsearch-py's
-Elasticsearch.search() did. Passing **search_kwargs (spreading
+client's search() did. Passing **search_kwargs (spreading
 size/query/aggs as separate kwargs) raised, in production:
     OpenSearch.search() got an unexpected keyword argument 'query'
 
@@ -49,7 +49,7 @@ def test_execute_rule_calls_search_with_body_kwarg_not_spread():
     keyword arguments (which opensearch-py 3.2.0 rejects outright)."""
     fake_response = {"took": 3, "hits": {"total": {"value": 0}}, "aggregations": {}}
 
-    with patch.object(executor.es_client, "search", return_value=fake_response) as mock_search:
+    with patch.object(executor.opensearch_client, "search", return_value=fake_response) as mock_search:
         result = executor.execute_rule(RULE)
 
     mock_search.assert_called_once()
@@ -70,7 +70,7 @@ def test_execute_rule_returns_plain_dict_unchanged():
     must return it as-is, with no .body unwrapping."""
     fake_response = {"took": 1, "hits": {}, "aggregations": {"by_user": {"buckets": []}}}
 
-    with patch.object(executor.es_client, "search", return_value=fake_response):
+    with patch.object(executor.opensearch_client, "search", return_value=fake_response):
         result = executor.execute_rule(RULE)
 
     assert result is fake_response
@@ -95,12 +95,12 @@ def test_execute_rule_wraps_search_exception():
     simulated_cause = ConnectionRefusedError("simulated connection failure")
     search_exception = OSConnectionError("N/A", "Connection refused", simulated_cause)
 
-    with patch.object(executor.es_client, "search", side_effect=search_exception):
+    with patch.object(executor.opensearch_client, "search", side_effect=search_exception):
         try:
             executor.execute_rule(RULE)
             assert False, "expected RuleExecutionError"
         except executor.RuleExecutionError as e:
             assert str(e).startswith(
-                "Elasticsearch error while executing rule "
+                "OpenSearch error while executing rule "
                 "'Lateral Movement - Multiple Host Logins by Single User'"
             )

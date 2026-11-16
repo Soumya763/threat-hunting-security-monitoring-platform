@@ -6,12 +6,17 @@ which init_db.py (and database/migrate.py) rely on to create tables.
 """
 
 from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.analysis import Analysis, AnalysisIncidentLink, AnalysisNote, IntelCache
 from app.models.audit_log import AuditEntityType, AuditLog
 from app.models.incident import Incident, IncidentSeverity, IncidentStatus
 from app.models.investigation_note import InvestigationNote
 from app.models.user import User
 
 __all__ = [
+    "Analysis",
+    "AnalysisIncidentLink",
+    "AnalysisNote",
+    "IntelCache",
     "Alert",
     "AlertSeverity",
     "AlertStatus",

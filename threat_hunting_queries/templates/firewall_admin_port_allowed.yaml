@@ -1,0 +1,36 @@
+# Allowed connections to remote-administration or file-sharing ports.
+name: "Remote Administration or SMB Access Allowed from One Source"
+description: >
+  Firewall allowed traffic to SSH (22), Telnet (23), SMB (445) or RDP (3389)
+  from one source at least three times in 15 minutes. These services are
+  common lateral-movement paths, so repeated allowed access is worth review.
+  Legitimate administrators will also match, so treat this as a triage lead.
+mitre_tactic: "TA0008 - Lateral Movement"
+mitre_technique: "T1021 - Remote Services"
+severity: medium
+index: "events-firewall-*"
+query:
+  bool:
+    filter:
+      - term:
+          event_type.keyword: "firewall_connection_allowed"
+      - terms:
+          destination.port:
+            - 22
+            - 23
+            - 445
+            - 3389
+      - range:
+          "@timestamp":
+            gte: "now-15m"
+            lte: "now"
+  aggs:
+    by_source_ip:
+      terms:
+        field: "source.ip.keyword"
+        size: 50
+threshold:
+  aggregation: "_count"
+  min_count: 3
+  window_minutes: 15
+  entity_type: "ip"

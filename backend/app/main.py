@@ -1,7 +1,7 @@
 """
 FastAPI application entrypoint.
 
-App instance, config, and DB connections (Postgres + Elasticsearch), APIs
+App instance, config, and DB connections (Postgres + OpenSearch), APIs
 for alerts/incidents/audit/auth, and the automatic detection/correlation
 scheduler's startup/shutdown lifecycle (see app.scheduler).
 """
@@ -15,15 +15,21 @@ from app.api.alerts import router as alerts_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.analysis import router as analysis_router
+from app.api.platform import router as platform_router
 from app.api.incidents import router as incidents_router
 from app.config import settings
 from app.scheduler import lifespan
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# opensearch-py logs a full stack trace for every failed request. The application already
+# logs each failure once with context (pivots, detection, health), so keep only real errors.
+logging.getLogger("opensearch").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 app = FastAPI(
     title="Threat Hunting & Security Monitoring Platform",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -40,6 +46,8 @@ app.include_router(alerts_router)
 app.include_router(incidents_router)
 app.include_router(audit_router)
 app.include_router(auth_router)
+app.include_router(analysis_router)
+app.include_router(platform_router)
 
 
 @app.get("/")

@@ -26,6 +26,7 @@ from app.database.base import Base
 class AuditEntityType(str, enum.Enum):
     alert = "alert"
     incident = "incident"
+    analysis = "analysis"
 
 
 class AuditLog(Base):

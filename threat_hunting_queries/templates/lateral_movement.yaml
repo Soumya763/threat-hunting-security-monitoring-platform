@@ -1,13 +1,18 @@
 # Detection rule schema:
 #   name             - short human-readable rule name
-#   description       - what the rule detects and why it matters
-#   mitre_tactic       - MITRE ATT&CK tactic (ID + name)
-#   mitre_technique     - MITRE ATT&CK technique (ID + name)
-#   severity           - low | medium | high | critical (alert severity if this rule fires)
-#   index               - Elasticsearch index pattern to query
-#   query                - Elasticsearch Query DSL (filters + aggregations)
-#   threshold             - condition applied to the query's aggregation result
-#                           that decides whether an alert should be raised
+#   description      - what the rule detects and why it matters
+#   mitre_tactic     - MITRE ATT&CK tactic (ID + name)
+#   mitre_technique  - MITRE ATT&CK technique (ID + name)
+#   severity         - low | medium | high | critical
+#   index            - OpenSearch index pattern to query
+#   query            - OpenSearch Query DSL (filters + aggregations)
+#   threshold        - condition on the aggregation result. Keys:
+#       aggregation             - sub-aggregation name holding the metric, or "_count"
+#       min_count               - alert when the metric is >= this value
+#       window_minutes          - time window used for duplicate suppression
+#       entity_type             - user | ip | domain | host (what the bucket key is)
+#       source_ip_aggregation   - optional sub-aggregation (terms, size 1) giving
+#                                 the top source IP for the entity
 
 name: "Lateral Movement - Multiple Host Logins by Single User"
 
@@ -42,10 +47,14 @@ query:
         distinct_hosts:
           cardinality:
             field: "source_name.keyword"
+        top_source_ip:
+          terms:
+            field: "source_ip.keyword"
+            size: 1
 
 threshold:
-  # Fires when a single "username" bucket touches at least this many
-  # distinct hosts ("source_name") inside the query's time range.
   aggregation: "distinct_hosts"
   min_count: 3
   window_minutes: 15
+  entity_type: "user"
+  source_ip_aggregation: "top_source_ip"

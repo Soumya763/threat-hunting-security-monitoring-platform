@@ -1,0 +1,36 @@
+# Repeated failed Windows logons against one account (password guessing).
+name: "Brute Force - Repeated Failed Logins for One Account"
+description: >
+  One account accumulates several failed Windows logons in a short window.
+  Repeated failures against a single username are the classic signature of
+  password guessing. The most common source IP for the account is attached
+  to the alert so it can be checked against threat intelligence.
+mitre_tactic: "TA0006 - Credential Access"
+mitre_technique: "T1110 - Brute Force"
+severity: high
+index: "events-windows-*"
+query:
+  bool:
+    filter:
+      - term:
+          event_type.keyword: "windows_login_failed"
+      - range:
+          "@timestamp":
+            gte: "now-10m"
+            lte: "now"
+  aggs:
+    by_user:
+      terms:
+        field: "username.keyword"
+        size: 50
+      aggs:
+        top_source_ip:
+          terms:
+            field: "source_ip.keyword"
+            size: 1
+threshold:
+  aggregation: "_count"
+  min_count: 5
+  window_minutes: 10
+  entity_type: "user"
+  source_ip_aggregation: "top_source_ip"

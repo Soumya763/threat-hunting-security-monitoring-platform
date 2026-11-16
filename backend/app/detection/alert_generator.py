@@ -1,13 +1,20 @@
 """
 Alert generator.
 
-Evaluates a rule's Elasticsearch aggregation response (as returned by
+Evaluates a rule's OpenSearch aggregation response (as returned by
 app.detection.executor.execute_rule) against the rule's `threshold`, and
 writes an Alert row to PostgreSQL for each match that isn't a recent
-duplicate. Uses the existing Alert model and DB session as-is - no schema
-changes beyond the alert's own mitre_tactic/mitre_technique columns. This
-only creates alerts; it does not schedule runs (see app.scheduler),
-expose an API, correlate alerts into incidents, or touch the frontend.
+duplicate.
+
+Each rule declares threshold.entity_type ("user", "ip", "domain" or
+"host"). That entity becomes Alert.entity_type / Alert.entity_key, and
+when the entity is an IP address it is also written to Alert.source_ip.
+For user-based rules, threshold.source_ip_aggregation may name a
+sub-aggregation (a terms agg of size 1) that supplies the most common
+source IP for that user, so the AbuseIPDB check has an IP to query.
+
+Duplicate suppression uses (rule, entity_type, entity_key) inside the
+rule's window, instead of matching on description text.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -17,70 +24,74 @@ from app.database.postgres import SessionLocal
 from app.models.alert import Alert, AlertSeverity
 
 DEFAULT_WINDOW_MINUTES = 15
+COUNT_METRIC = "_count"  # use the bucket's doc_count instead of a sub-aggregation
 
 
 def _infer_source_type(index_pattern: str) -> str:
-    """
-    Derive a short source_type (e.g. "windows") from an index pattern like
-    "events-windows-*", to populate Alert.source_type.
-    """
+    """Derive a short source_type (e.g. "windows") from "events-windows-*"."""
     name = index_pattern.strip("*").strip("-")
     if name.startswith("events-"):
         name = name[len("events-"):]
     return name or index_pattern
 
 
-def _entity_marker(entity: str) -> str:
-    """
-    Stable prefix embedded at the start of Alert.description identifying
-    what/who triggered the alert (currently: the bucketed username).
-    Used both for readability and as the duplicate-detection key, since
-    the existing Alert model has no dedicated column for it.
-    """
-    return f"[entity={entity}]"
+def _metric_value(bucket: dict[str, Any], metric_name: str) -> float | None:
+    if metric_name == COUNT_METRIC:
+        return bucket.get("doc_count")
+    metric = bucket.get(metric_name)
+    if not isinstance(metric, dict) or "value" not in metric:
+        return None
+    return metric["value"]
 
 
 def _extract_matches(rule: dict[str, Any], response: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Walk the rule's aggregation response and return one entry per bucket
-    that meets the rule's threshold.
-
-    Expects the shape produced for terms-agg + metric-sub-agg rules (like
-    lateral_movement.yaml): aggregations.<agg_name>.buckets[] where each
-    bucket has a "key" and a "<threshold.aggregation>": {"value": N}.
+    whose metric meets the rule's threshold. Each match carries the entity
+    key, the metric value, and (optionally) the top source IP for that
+    entity.
     """
     threshold = rule["threshold"]
     metric_name = threshold["aggregation"]
     min_count = threshold["min_count"]
+    ip_agg = threshold.get("source_ip_aggregation")
 
     aggregations = response.get("aggregations", {}) if response else {}
-    matches = []
+    matches: list[dict[str, Any]] = []
 
     for agg_result in aggregations.values():
         for bucket in agg_result.get("buckets", []):
-            metric = bucket.get(metric_name)
-            if not metric or "value" not in metric:
+            value = _metric_value(bucket, metric_name)
+            if value is None or value < min_count:
                 continue
-            if metric["value"] >= min_count:
-                matches.append({"entity": bucket.get("key"), "count": metric["value"]})
+
+            top_ip = None
+            if ip_agg:
+                sub = bucket.get(ip_agg, {}).get("buckets", [])
+                if sub:
+                    top_ip = str(sub[0].get("key"))
+
+            matches.append(
+                {
+                    "entity": str(bucket.get("key")),
+                    "count": value,
+                    "source_ip": top_ip,
+                }
+            )
 
     return matches
 
 
-def _duplicate_exists(db, rule_name: str, entity: str, window_minutes: int) -> bool:
-    """
-    An alert counts as a duplicate of an existing one if it's for the same
-    rule, the same entity (e.g. username), and was created within the
-    rule's own detection window - i.e. it's almost certainly the same
-    underlying activity being re-detected on a subsequent run.
-    """
-    marker = _entity_marker(entity)
+def _duplicate_exists(
+    db, rule_name: str, entity_type: str, entity_key: str, window_minutes: int
+) -> bool:
+    """An alert for the same rule and entity inside the window is a duplicate."""
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
-
     existing = (
         db.query(Alert)
         .filter(Alert.event_type == rule_name)
-        .filter(Alert.description.like(f"{marker}%"))
+        .filter(Alert.entity_type == entity_type)
+        .filter(Alert.entity_key == entity_key)
         .filter(Alert.created_at >= cutoff)
         .first()
     )
@@ -92,14 +103,14 @@ def generate_alerts(rule: dict[str, Any], response: dict[str, Any]) -> list[Aler
     Evaluate `response` against `rule`'s threshold and create an Alert for
     each match that doesn't already have a recent duplicate.
 
-    Returns the Alert rows that were created (empty list if nothing met
-    the threshold, or every match was a duplicate).
+    Returns the Alert rows that were created.
     """
     matches = _extract_matches(rule, response)
     if not matches:
         return []
 
     threshold = rule["threshold"]
+    entity_type = threshold["entity_type"]
     window_minutes = threshold.get("window_minutes", DEFAULT_WINDOW_MINUTES)
 
     try:
@@ -118,26 +129,29 @@ def generate_alerts(rule: dict[str, Any], response: dict[str, Any]) -> list[Aler
         for match in matches:
             entity = match["entity"]
 
-            if _duplicate_exists(db, rule_name, entity, window_minutes):
+            if _duplicate_exists(db, rule_name, entity_type, entity, window_minutes):
                 continue
 
-            marker = _entity_marker(entity)
             description = (
-                f"{marker} {rule_description} "
-                f"Matched: '{entity}' -> {match['count']} distinct hosts "
+                f"[entity={entity}] {rule_description} "
+                f"Matched: '{entity}' -> {match['count']} "
                 f"(threshold={threshold['min_count']}, window={window_minutes}m)."
             ).strip()
+
+            # An IP-entity alert's source is the IP itself; a user-entity
+            # alert takes the top source IP supplied by the rule, if any.
+            source_ip = entity if entity_type == "ip" else match["source_ip"]
 
             alert = Alert(
                 event_type=rule_name,
                 description=description,
                 severity=severity,
                 source_type=source_type,
+                source_ip=source_ip,
+                entity_type=entity_type,
+                entity_key=entity[:255],
                 es_index=rule["index"],
-                es_doc_id=None,  # aggregation-based match - no single source document
-                # Copied verbatim from the rule that raised this alert -
-                # query_loader.load_rules() already guarantees both keys
-                # are present (REQUIRED_FIELDS), so no invented mapping.
+                es_doc_id=None,  # aggregation-based match
                 mitre_tactic=rule["mitre_tactic"],
                 mitre_technique=rule["mitre_technique"],
             )
@@ -152,22 +166,3 @@ def generate_alerts(rule: dict[str, Any], response: dict[str, Any]) -> list[Aler
         db.close()
 
     return created
-
-
-if __name__ == "__main__":
-    from app.detection.query_loader import load_rules
-    from app.detection.executor import execute_rule, RuleExecutionError
-
-    for rule in load_rules():
-        try:
-            response = execute_rule(rule)
-        except RuleExecutionError as e:
-            print(f"{rule['name']}: execution failed - {e}")
-            continue
-
-        new_alerts = generate_alerts(rule, response)
-        if new_alerts:
-            for a in new_alerts:
-                print(f"{rule['name']}: ALERT id={a.id} severity={a.severity} -> {a.description}")
-        else:
-            print(f"{rule['name']}: no new alerts (threshold not met or duplicate)")

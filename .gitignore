@@ -35,3 +35,10 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Quarantined uploads and local analysis storage (never commit uploaded content)
+backend/quarantine/
+*.quarantine
+
+# Local CA bundles for TLS-intercepting networks (see docs/DEPLOYMENT.md)
+backend/certs/*.crt
