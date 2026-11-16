@@ -200,6 +200,7 @@ def check_provider(provider_id: str) -> dict[str, Any]:
     """Test one provider with a benign indicator. Returns status only, never the key."""
     from datetime import datetime as _dt
 
+    from app.services.intel import providers
     from app.services.intel.providers import PROVIDER_CATALOG
 
     catalog = {p["id"]: p for p in PROVIDER_CATALOG}
@@ -215,7 +216,9 @@ def check_provider(provider_id: str) -> dict[str, Any]:
 
     indicator_type, value = CHECK_TARGETS[provider_id]
     gateway = IntelGateway()
-    if provider_id == "abuseipdb":
+    if provider_id == "otx":
+        outcome = providers.otx.validate_key()
+    elif provider_id == "abuseipdb":
         outcome = gateway._abuseipdb(value)
     else:
         outcome = _PROVIDERS[provider_id].lookup(indicator_type, value)  # client call, no cache

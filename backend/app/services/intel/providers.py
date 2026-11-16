@@ -199,6 +199,9 @@ class MalwareBazaarClient:
         except requests.RequestException as exc:
             return _transport_error(self.name, indicator_type, value, exc)
 
+        if response.status_code in (401, 403):
+            return base.result(self.name, indicator_type, value, base.STATUS_INVALID_KEY,
+                               message="MalwareBazaar rejected the configured Auth-Key.")
         if response.status_code != 200:
             return base.result(self.name, indicator_type, value, base.STATUS_UNAVAILABLE,
                                message=f"MalwareBazaar returned HTTP {response.status_code}.")
@@ -271,6 +274,27 @@ class OTXClient:
         })
 
 
+    def validate_key(self) -> dict[str, Any]:
+        """Check the key against /user/me. Public indicator endpoints answer anonymous
+        requests, so they cannot prove that a key is valid."""
+        if not self.configured:
+            return base.result(self.name, "account", "", base.STATUS_NOT_CONFIGURED,
+                               message="AlienVault OTX is not configured (OTX_API_KEY).")
+        try:
+            response = _get_or_post("GET", f"{settings.otx_api_url}/user/me",
+                                    headers={"X-OTX-API-KEY": settings.otx_api_key})
+        except requests.RequestException as exc:
+            return _transport_error(self.name, "account", "", exc)
+        if response.status_code in (401, 403):
+            return base.result(self.name, "account", "", base.STATUS_INVALID_KEY,
+                               message="AlienVault OTX rejected the configured API key.")
+        mapped = _map_http_error(self.name, "account", "", response)
+        if mapped:
+            return mapped
+        return base.result(self.name, "account", "", base.STATUS_OK,
+                           message="The key was accepted by AlienVault OTX.")
+
+
 # ---------------------------------------------------------------- urlscan.io
 
 class UrlscanClient:
@@ -307,6 +331,9 @@ class UrlscanClient:
         except requests.RequestException as exc:
             return _transport_error(self.name, "domain", domain, exc)
 
+        if response.status_code == 400 and "api key" in response.text.lower():
+            return base.result(self.name, "domain", domain, base.STATUS_INVALID_KEY,
+                               message="urlscan.io rejected the configured API key format.")
         mapped = _map_http_error(self.name, "domain", domain, response)
         if mapped:
             return mapped
